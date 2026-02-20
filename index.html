@@ -127,42 +127,78 @@ window.sendFullToDrive = async function() {
 };
 
 window.syncIndividual = async function(cust) {
-    const statusLine = document.getElementById('syncStatusLine').innerText;
-    if (statusLine.includes("Sync Blocked")) { if(window.checkSyncIntegrity) window.checkSyncIntegrity(); return; }
-    if (!navigator.onLine || window.customers.length <= 15) { if(window.checkSyncIntegrity) window.checkSyncIntegrity(); return; }
+    if (localStorage.getItem('sync_blocked') === 'true') { window.checkSyncIntegrity(); return; }
+    if (!navigator.onLine || window.customers.length <= 15) { 
+        if (window.customers.length > 15 && !navigator.onLine) { localStorage.setItem('sync_blocked', 'true'); }
+        window.checkSyncIntegrity(); 
+        return; 
+    }
     
     const database = await getAppDb();
     const secret = localStorage.getItem('secret_key');
     if (!database || !secret) return;
+
+    const reqTime = Date.now();
+    setTimeout(() => { 
+        if (parseInt(localStorage.getItem('lastEditTimestamp')) > parseInt(localStorage.getItem('lastSyncTimestamp'))) { 
+            localStorage.setItem('sync_blocked', 'true'); 
+            window.checkSyncIntegrity(); 
+        } 
+    }, 5500);
+
     try {
         refreshSyncLine("Syncing....", false, true);
         const statusTime = getStatusPattern();
         await set(ref(database, `app_data/${secret}/customers/${cust.id}`), cust);
+        
+        if (Date.now() - reqTime > 5000 || localStorage.getItem('sync_blocked') === 'true') { 
+            localStorage.setItem('sync_blocked', 'true');
+            window.checkSyncIntegrity();
+            return; 
+        }
+
         await set(ref(database, `app_data/${secret}/lastSyncTime`), statusTime);
         localStorage.setItem('storedSyncTime', statusTime);
         localStorage.setItem('lastSyncTimestamp', Date.now()); 
-        if(window.checkSyncIntegrity) window.checkSyncIntegrity(); 
         refreshSyncLine(statusTime, true);
         window.sendFullToDrive();
     } catch(e) { refreshSyncLine(`Error: ${e.message}`, false, false, true); }
 };
 
 window.syncDelete = async function(id) {
-    const statusLine = document.getElementById('syncStatusLine').innerText;
-    if (statusLine.includes("Sync Blocked")) { if(window.checkSyncIntegrity) window.checkSyncIntegrity(); return; }
-    if (!navigator.onLine || window.customers.length <= 15) { if(window.checkSyncIntegrity) window.checkSyncIntegrity(); return; }
+    if (localStorage.getItem('sync_blocked') === 'true') { window.checkSyncIntegrity(); return; }
+    if (!navigator.onLine || window.customers.length <= 15) { 
+        if (window.customers.length > 15 && !navigator.onLine) { localStorage.setItem('sync_blocked', 'true'); }
+        window.checkSyncIntegrity(); 
+        return; 
+    }
 
     const database = await getAppDb();
     const secret = localStorage.getItem('secret_key');
     if (!database || !secret) return;
+
+    const reqTime = Date.now();
+    setTimeout(() => { 
+        if (parseInt(localStorage.getItem('lastEditTimestamp')) > parseInt(localStorage.getItem('lastSyncTimestamp'))) { 
+            localStorage.setItem('sync_blocked', 'true'); 
+            window.checkSyncIntegrity(); 
+        } 
+    }, 5500);
+
     try {
         refreshSyncLine("Syncing....", false, true);
         const statusTime = getStatusPattern();
         await remove(ref(database, `app_data/${secret}/customers/${id}`));
+        
+        if (Date.now() - reqTime > 5000 || localStorage.getItem('sync_blocked') === 'true') { 
+            localStorage.setItem('sync_blocked', 'true');
+            window.checkSyncIntegrity();
+            return; 
+        }
+
         await set(ref(database, `app_data/${secret}/lastSyncTime`), statusTime);
         localStorage.setItem('storedSyncTime', statusTime);
         localStorage.setItem('lastSyncTimestamp', Date.now()); 
-        if(window.checkSyncIntegrity) window.checkSyncIntegrity(); 
         refreshSyncLine(statusTime, true);
         window.sendFullToDrive();
     } catch(e) { refreshSyncLine(`Error: ${e.message}`, false, false, true); }
@@ -176,17 +212,34 @@ window.fullManualBackup = async function() {
     const database = await getAppDb();
     const secret = localStorage.getItem('secret_key');
     if (!database || !secret) { downloadBackupFile(); return; }
+
+    const reqTime = Date.now();
+    setTimeout(() => { 
+        if (parseInt(localStorage.getItem('lastEditTimestamp')) > parseInt(localStorage.getItem('lastSyncTimestamp'))) { 
+            localStorage.setItem('sync_blocked', 'true'); 
+            window.checkSyncIntegrity(); 
+        } 
+    }, 12500);
+
     try {
         refreshSyncLine("Syncing....", false, true);
         const custObj = {};
         window.customers.forEach(c => { if(c) custObj[c.id] = c; });
         const msg = `All data sent to cloud at ${statusTime}`;
         await set(ref(database, `app_data/${secret}/customers`), custObj);
+        
+        if (Date.now() - reqTime > 12000) { 
+            localStorage.setItem('sync_blocked', 'true');
+            window.checkSyncIntegrity();
+            return; 
+        }
+
         await set(ref(database, `app_data/${secret}/lastSyncTime`), msg);
         window.sendFullToDrive(); 
+        
+        localStorage.setItem('sync_blocked', 'false');
         localStorage.setItem('storedSyncTime', msg);
         localStorage.setItem('lastSyncTimestamp', Date.now()); 
-        if(window.checkSyncIntegrity) window.checkSyncIntegrity(); 
         refreshSyncLine(msg, true);
     } catch (e) { refreshSyncLine(`Error: ${e.message}`, false, false, true); }
 };
@@ -206,7 +259,8 @@ window.pullFromCloud = async function() {
             const cloudSyncTime = cloudData.lastSyncTime || getStatusPattern();
             localStorage.setItem('customers', JSON.stringify(window.customers));
             localStorage.setItem('storedSyncTime', cloudSyncTime);
-            localStorage.setItem('lastSyncTimestamp', Date.now()); 
+            localStorage.setItem('lastSyncTimestamp', Date.now());
+            localStorage.setItem('sync_blocked', 'false');
             updateUI();
             if(window.checkSyncIntegrity) window.checkSyncIntegrity(); 
             refreshSyncLine(cloudSyncTime, true);
@@ -233,6 +287,14 @@ function refreshSyncLine(msg, isSuccess = false, isAmber = false, isError = fals
     const statusEl = document.getElementById('syncStatusLine');
     const time = localStorage.getItem('storedSyncTime') || "Never";
     if (syncTimeout) clearTimeout(syncTimeout);
+    
+    // Override: Allow Syncing/Success to bypass the block warning UI
+    if (localStorage.getItem('sync_blocked') === 'true' && !isAmber && !isSuccess) {
+        statusEl.innerHTML = "Sync Blocked: Use Backup Button"; 
+        statusEl.style.color = "#ef4444";
+        return; 
+    }
+
     if (isError) { statusEl.innerHTML = msg; statusEl.style.color = "#ef4444"; } 
     else if (isAmber) { statusEl.innerHTML = msg || "Syncing...."; statusEl.style.color = "#f59e0b";
         syncTimeout = setTimeout(() => { if(statusEl.innerHTML && statusEl.innerHTML.includes("Syncing")) refreshSyncLine(time, false); }, 10000);
@@ -246,34 +308,21 @@ function refreshSyncLine(msg, isSuccess = false, isAmber = false, isError = fals
 }
 
 window.checkSyncIntegrity = function() {
-    setTimeout(() => {
+    const lastSyncTS = parseInt(localStorage.getItem('lastSyncTimestamp')) || 0;
+    const lastEditTS = parseInt(localStorage.getItem('lastEditTimestamp')) || 0;
+    
+    if (lastEditTS > lastSyncTS && window.customers.length > 15) {
+        localStorage.setItem('sync_blocked', 'true');
+    }
+    
+    if (localStorage.getItem('sync_blocked') === 'true') {
         const statusEl = document.getElementById('syncStatusLine');
-        if (statusEl.style.color !== "rgb(5, 150, 105)" && statusEl.style.color !== "#059669" && statusEl.innerHTML.includes("Syncing")) {
-            setTimeout(() => {
-                const lastSyncTS = parseInt(localStorage.getItem('lastSyncTimestamp')) || 0;
-                const lastEditTS = parseInt(localStorage.getItem('lastEditTimestamp')) || 0;
-                if (lastEditTS > lastSyncTS) {
-                    refreshSyncLine("Sync Blocked: Use Backup Button", false, false, true);
-                } else {
-                    const currentStatus = document.getElementById('syncStatusLine').innerText;
-                    if (currentStatus.includes("Sync Blocked")) {
-                         refreshSyncLine(localStorage.getItem('storedSyncTime') || "Never", false);
-                    }
-                }
-            }, 11000);
-        } else {
-            const lastSyncTS = parseInt(localStorage.getItem('lastSyncTimestamp')) || 0;
-            const lastEditTS = parseInt(localStorage.getItem('lastEditTimestamp')) || 0;
-            if (lastEditTS > lastSyncTS) {
-                refreshSyncLine("Sync Blocked: Use Backup Button", false, false, true);
-            } else {
-                const currentStatus = document.getElementById('syncStatusLine').innerText;
-                if (currentStatus.includes("Sync Blocked")) {
-                     refreshSyncLine(localStorage.getItem('storedSyncTime') || "Never", false);
-                }
-            }
+        // Prevent integrity check from clearing "Syncing" or "Success" state during manual backup
+        if (statusEl && !statusEl.innerHTML.includes("Syncing") && !statusEl.innerHTML.includes("All data")) {
+            statusEl.innerHTML = "Sync Blocked: Use Backup Button";
+            statusEl.style.color = "#ef4444";
         }
-    }, 3000);
+    }
 };
 
 function saveLocalOnly() {
@@ -448,6 +497,7 @@ function restoreFromFile(e) {
                 window.customers = data.D.map(it => ({ id: it.I || Date.now(), name: it.C, phone: it.P || "n", total: it.T, history: it.H || [], lastTime: it.L || "" }));
                 localStorage.setItem('customers', JSON.stringify(window.customers));
                 localStorage.setItem('lastSyncTimestamp', Date.now());
+                localStorage.setItem('sync_blocked', 'false');
                 updateUI();
                 if(window.checkSyncIntegrity) window.checkSyncIntegrity();
             }
@@ -470,8 +520,8 @@ function showCalculatedLastUpdate() {
 
 document.addEventListener('DOMContentLoaded', () => { 
     updateUI(); 
+    window.checkSyncIntegrity();
     refreshSyncLine(localStorage.getItem('storedSyncTime'), false);
-    setTimeout(() => { if(window.checkSyncIntegrity) window.checkSyncIntegrity(); }, 800);
 });
 </script>
 </body>
