@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>AH Sweets Management</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e1e1e">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root { --primary: #059669; --success: #FFC107; --bg: #1e1e1e; --card: #2c2c2c; --text-dark: #e5e7eb; --text-light: #9ca3af; --border: #374151; --receive-red: #ef4444; --amber: #f59e0b; }
+body { background-color: var(--bg); margin: 0; padding: 0; display: flex; justify-content: center; -webkit-user-select: none; user-select: none; }
+#management-app { display: block; font-family: 'Inter', sans-serif; color: var(--text-dark); max-width: 600px; width: 100%; margin: 10px; padding: 15px; padding-right: 40px; border-radius: 16px; box-sizing: border-box; }
+.header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+.header-title { font-weight: 700; font-size: 1.1rem; color: var(--success); }
+#syncStatusLine { display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 10px; color: #9ca3af; transition: color 0.3s ease; }
+.search-container { position: sticky; top: 0; z-index: 1001; background: var(--bg); padding: 5px 0 10px 0; }
+#customerSearch { width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 10px; background: #2c2c2c; color: white; font-size: 1rem; box-sizing: border-box; -webkit-user-select: text; user-select: text; }
+.search-results { background: #333; border-radius: 0 0 10px 10px; max-height: 250px; overflow-y: auto; display: none; border: 1px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+.search-results div { padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; color: var(--success); }
+.alpha-nav { position: fixed; right: 2px; top: 50%; transform: translateY(-50%); flex-direction: column; z-index: 1000; background: rgba(30, 30, 30, 0.85); padding: 5px 0; border-radius: 10px; max-height: 90vh; overflow-y: auto; display: flex; }
+.alpha-nav a { font-size: 11px; color: var(--success); padding: 1px 6px; text-decoration: none; text-align: center; font-weight: 700; display: block; line-height: 1.4; }
+.letter-header { color: var(--success); font-size: 1.2rem; font-weight: 800; padding: 10px 0 5px 0; border-bottom: 1px solid var(--border); margin-top: 15px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+.total-credit-grey { color: #888; font-size: 1rem; font-weight: 500; margin-left: 8px; cursor: pointer; }
+.customer-box { background: var(--card); padding: 18px; border-radius: 12px; margin-bottom: 12px; border: 1px solid var(--border); position: relative; }
+.customer-name { font-weight: 700; font-size: 1.1rem; color: var(--text-dark); cursor: pointer; padding-right: 80px; }
+.total-amount { font-weight: 800; font-size: 1.3rem; color: var(--success); margin: 5px 0; display: block; cursor: pointer; }
+.last-update-tag { position: absolute; top: 12px; right: 12px; font-size: 0.65rem; color: var(--text-light); background: rgba(255,255,255,0.08); padding: 3px 7px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer;}
+.input-box { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; margin: 10px 0; font-size: 1rem; box-sizing: border-box; background: #2c2c2c; color: var(--text-dark); -webkit-user-select: text; user-select: text; }
+.button-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.btn { padding: 10px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.9rem; }
+.btn-add { background: var(--primary); color: white; }
+.btn-receive { background: var(--receive-red); color: white; }
+.btn-backup { background: #374151; color: white; }
+.add-new-section { margin-top: 30px; padding: 20px; background: #2c2c2c; border-radius: 12px; border: 2px dashed #4b5563; }
+.bottom-spacer { height: 280px; }
+#historyOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; display: none; justify-content: center; align-items: center; }
+.history-modal { background: #2c2c2c; width: 90%; max-width: 400px; border-radius: 20px; border: 1px solid var(--border); overflow: hidden; }
+.history-header { padding: 18px; background: #1e1e1e; font-weight: 800; color: var(--success); text-align: center; border-bottom: 1px solid var(--border); }
+#histContent { max-height: 350px; overflow-y: auto; }
+.history-item { padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.history-close { padding: 15px; text-align: center; background: var(--primary); color: white; cursor: pointer; font-weight: 700; }
+.show-all-btn { width: 100%; margin: 10px 0; padding: 12px; background: #374151; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; text-align: center; }
+</style>
+</head>
+<body oncontextmenu="return false;">
+<div id="historyOverlay" onclick="closeHistory()">
+    <div class="history-modal" onclick="event.stopPropagation()">
+        <div id="histHeader" class="history-header">Recent History</div>
+        <div id="histContent"></div>
+        <div class="history-close" onclick="closeHistory()">CLOSE</div>
+    </div>
+</div>
+<div id="management-app">
+    <div class="header-row" id="mainHeader"><div class="header-title">AH Sweets ~ Ali Haider</div></div>
+    <div id="syncStatusLine">Last Sync: Never</div>
+    <div class="search-container">
+        <input type="text" id="customerSearch" oninput="searchCustomer()" placeholder="🔍 Search Customers..." autocomplete="off">
+        <div id="searchResults" class="search-results"></div>
+    </div>
+    <div id="alpha-nav" class="alpha-nav"></div>
+    <div class="btn-container" id="topButtons" style="display: flex; gap: 10px; margin-bottom: 20px;">
+        <button class="btn btn-backup" id="backupBtn" style="flex:1" onclick="handleBackup()">⌛ Backup</button>
+        <button class="btn btn-backup" style="flex:1" onclick="handleRestore()">⏳ Restore</button>
+        <input type="file" id="fileInput" style="display:none" onchange="restoreFromFile(event)">
+    </div>
+    <button class="show-all-btn" style="width:100%; display:none;" id="showAllBtnTop" onclick="clearSearch()">Show All Customers</button>
+    <div id="customer-list"></div>
+    <div id="add-new-section" class="add-new-section">
+        <h3 style="margin-top:0; font-size:1rem; color:var(--text-dark)">+ Add New Customer</h3>
+        <input id="newCustomerName" type="text" placeholder="Customer Name" class="input-box">
+        <input id="newCustomerPhone" type="text" placeholder="Phone Number (or n)" class="input-box">
+        <button class="btn btn-add" style="width:100%" onclick="addNewCustomer()">Create Account</button>
+    </div>
+    <div class="bottom-spacer"></div>
+</div>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, set, update, get, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+let db = null;
+async function getAppDb() {
+    if (db) return db;
+    let fbKey = localStorage.getItem('fb_key');
+    let secret = localStorage.getItem('secret_key');
+    let pId = localStorage.getItem('p_id');
+    let dbUrl = localStorage.getItem('db_url');
+
+    if (!fbKey || !secret || !pId || !dbUrl) {
+        let pasted = prompt("Paste your Cloud Structure here");
+        if (pasted && pasted.includes('+')) {
+            let parts = pasted.split('+');
+            localStorage.setItem('fb_key', parts[0].trim());
+            localStorage.setItem('drive_url', parts[1].trim());
+            localStorage.setItem('secret_key', parts[2].trim());
+            localStorage.setItem('p_id', parts[3].trim());
+            localStorage.setItem('db_url', parts[4].trim());
+            location.reload();
+        }
+        return null;
+    }
+    const fbConfig = { 
+        apiKey: fbKey, 
+        authDomain: pId + ".firebaseapp.com", 
+        databaseURL: dbUrl, 
+        projectId: pId 
+    };
+    const app = initializeApp(fbConfig);
+    db = getDatabase(app);
+    return db;
+}
+
+function getStatusPattern() {
+    const now = new Date();
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    let hr = now.getHours(); const ampm = hr >= 12 ? 'PM' : 'AM'; hr = hr % 12 || 12;
+    return `${now.getDate()} ${months[now.getMonth()]} ${hr}:${now.getMinutes().toString().padStart(2,'0')} ${ampm}`;
+}
+
+window.sendFullToDrive = async function() {
+    const driveUrl = localStorage.getItem('drive_url');
+    if (!driveUrl || window.customers.length <= 15 || !navigator.onLine) return;
+    const txt = window.customers.map(c => `${c.name} =${c.total}`).join('\n');
+    try {
+        fetch(driveUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ filename: "AH.Sweets.Backup.txt", data: txt }) });
+    } catch(e) {}
+};
+
+window.syncIndividual = async function(cust) {
+    const statusLine = document.getElementById('syncStatusLine').innerText;
+    if (statusLine.includes("Sync Blocked")) { if(window.checkSyncIntegrity) window.checkSyncIntegrity(); return; }
+    if (!navigator.onLine || window.customers.length <= 15) { if(window.checkSyncIntegrity) window.checkSyncIntegrity(); return; }
+    
+    const database = await getAppDb();
+    const secret = localStorage.getItem('secret_key');
+    if (!database || !secret) return;
+    try {
+        refreshSyncLine("Syncing....", false, true);
+        const statusTime = getStatusPattern();
+        await set(ref(database, `app_data/${secret}/customers/${cust.id}`), cust);
+        await set(ref(database, `app_data/${secret}/lastSyncTime`), statusTime);
+        localStorage.setItem('storedSyncTime', statusTime);
+        localStorage.setItem('lastSyncTimestamp', Date.now()); 
+        if(window.checkSyncIntegrity) window.checkSyncIntegrity(); 
+        refreshSyncLine(statusTime, true);
+        window.sendFullToDrive();
+    } catch(e) { refreshSyncLine(`Error: ${e.message}`, false, false, true); }
+};
+
+window.syncDelete = async function(id) {
+    const statusLine = document.getElementById('syncStatusLine').innerText;
+    if (statusLine.includes("Sync Blocked")) { if(window.checkSyncIntegrity) window.checkSyncIntegrity(); return; }
+    if (!navigator.onLine || window.customers.length <= 15) { if(window.checkSyncIntegrity) window.checkSyncIntegrity(); return; }
+
+    const database = await getAppDb();
+    const secret = localStorage.getItem('secret_key');
+    if (!database || !secret) return;
+    try {
+        refreshSyncLine("Syncing....", false, true);
+        const statusTime = getStatusPattern();
+        await remove(ref(database, `app_data/${secret}/customers/${id}`));
+        await set(ref(database, `app_data/${secret}/lastSyncTime`), statusTime);
+        localStorage.setItem('storedSyncTime', statusTime);
+        localStorage.setItem('lastSyncTimestamp', Date.now()); 
+        if(window.checkSyncIntegrity) window.checkSyncIntegrity(); 
+        refreshSyncLine(statusTime, true);
+        window.sendFullToDrive();
+    } catch(e) { refreshSyncLine(`Error: ${e.message}`, false, false, true); }
+};
+
+window.fullManualBackup = async function() {
+    if (window.customers.length <= 15) { refreshSyncLine("Try again later", false, true); return; }
+    if (!confirm("Are you sure you want to overwrite CLOUD data with LOCAL data?")) return;
+    const statusTime = getStatusPattern();
+    if (!navigator.onLine) { downloadBackupFile(); return; }
+    const database = await getAppDb();
+    const secret = localStorage.getItem('secret_key');
+    if (!database || !secret) { downloadBackupFile(); return; }
+    try {
+        refreshSyncLine("Syncing....", false, true);
+        const custObj = {};
+        window.customers.forEach(c => { if(c) custObj[c.id] = c; });
+        const msg = `All data sent to cloud at ${statusTime}`;
+        await set(ref(database, `app_data/${secret}/customers`), custObj);
+        await set(ref(database, `app_data/${secret}/lastSyncTime`), msg);
+        window.sendFullToDrive(); 
+        localStorage.setItem('storedSyncTime', msg);
+        localStorage.setItem('lastSyncTimestamp', Date.now()); 
+        if(window.checkSyncIntegrity) window.checkSyncIntegrity(); 
+        refreshSyncLine(msg, true);
+    } catch (e) { refreshSyncLine(`Error: ${e.message}`, false, false, true); }
+};
+
+window.pullFromCloud = async function() {
+    if (!navigator.onLine) return;
+    const database = await getAppDb();
+    const secret = localStorage.getItem('secret_key');
+    if (!database || !secret) return;
+    try {
+        refreshSyncLine("Syncing....", false, true);
+        const snapshot = await get(ref(database, `app_data/${secret}`));
+        const cloudData = snapshot.val();
+        if (cloudData && cloudData.customers) {
+            window.customers = Object.values(cloudData.customers);
+            window.customers.forEach(c => { if(c && !c.lastTime) c.lastTime = ""; });
+            const cloudSyncTime = cloudData.lastSyncTime || getStatusPattern();
+            localStorage.setItem('customers', JSON.stringify(window.customers));
+            localStorage.setItem('storedSyncTime', cloudSyncTime);
+            localStorage.setItem('lastSyncTimestamp', Date.now()); 
+            updateUI();
+            if(window.checkSyncIntegrity) window.checkSyncIntegrity(); 
+            refreshSyncLine(cloudSyncTime, true);
+        }
+    } catch(e) { refreshSyncLine(`Error: ${e.message}`, false, false, true); }
+};
+</script>
+<script>
+if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js'); }
+window.customers = JSON.parse(localStorage.getItem('customers')) || [];
+let syncTimeout = null;
+let singleViewId = null;
+const totalClickTracker = {};
+
+function getFormattedTime() {
+    const now = new Date();
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    let hr = now.getHours(); const ampm = hr >= 12 ? 'pm' : 'am'; hr = hr % 12 || 12;
+    return `${now.getDate()} ${months[now.getMonth()]}|${hr}:${now.getMinutes().toString().padStart(2, '0')} ${ampm}|${now.getTime()}`;
+}
+function formatAmount(n) { return Number(n).toLocaleString('en-IN'); }
+
+function refreshSyncLine(msg, isSuccess = false, isAmber = false, isError = false) {
+    const statusEl = document.getElementById('syncStatusLine');
+    const time = localStorage.getItem('storedSyncTime') || "Never";
+    if (syncTimeout) clearTimeout(syncTimeout);
+    if (isError) { statusEl.innerHTML = msg; statusEl.style.color = "#ef4444"; } 
+    else if (isAmber) { statusEl.innerHTML = msg || "Syncing...."; statusEl.style.color = "#f59e0b";
+        syncTimeout = setTimeout(() => { if(statusEl.innerHTML && statusEl.innerHTML.includes("Syncing")) refreshSyncLine(time, false); }, 10000);
+    } else if (isSuccess) { 
+        statusEl.innerHTML = msg.includes("All data") ? msg : `Last Sync at ${msg}`; 
+        statusEl.style.color = "#059669"; 
+    } else { 
+        statusEl.innerHTML = time === "Never" ? "Last Sync: Never" : (time.includes("All data") ? time : `Last Sync at ${time}`); 
+        statusEl.style.color = "#9ca3af"; 
+    }
+}
+
+window.checkSyncIntegrity = function() {
+    setTimeout(() => {
+        const statusEl = document.getElementById('syncStatusLine');
+        if (statusEl.style.color !== "rgb(5, 150, 105)" && statusEl.style.color !== "#059669" && statusEl.innerHTML.includes("Syncing")) {
+            setTimeout(() => {
+                const lastSyncTS = parseInt(localStorage.getItem('lastSyncTimestamp')) || 0;
+                const lastEditTS = parseInt(localStorage.getItem('lastEditTimestamp')) || 0;
+                if (lastEditTS > lastSyncTS) {
+                    refreshSyncLine("Sync Blocked: Use Backup Button", false, false, true);
+                } else {
+                    const currentStatus = document.getElementById('syncStatusLine').innerText;
+                    if (currentStatus.includes("Sync Blocked")) {
+                         refreshSyncLine(localStorage.getItem('storedSyncTime') || "Never", false);
+                    }
+                }
+            }, 11000);
+        } else {
+            const lastSyncTS = parseInt(localStorage.getItem('lastSyncTimestamp')) || 0;
+            const lastEditTS = parseInt(localStorage.getItem('lastEditTimestamp')) || 0;
+            if (lastEditTS > lastSyncTS) {
+                refreshSyncLine("Sync Blocked: Use Backup Button", false, false, true);
+            } else {
+                const currentStatus = document.getElementById('syncStatusLine').innerText;
+                if (currentStatus.includes("Sync Blocked")) {
+                     refreshSyncLine(localStorage.getItem('storedSyncTime') || "Never", false);
+                }
+            }
+        }
+    }, 3000);
+};
+
+function saveLocalOnly() {
+    localStorage.setItem('customers', JSON.stringify(window.customers));
+    localStorage.setItem('lastEditTimestamp', Date.now()); 
+    updateUI();
+}
+
+function updateBill(id, action) {
+    const input = document.getElementById(`input-${id}`);
+    const amt = parseFloat(input.value);
+    if (!amt || amt <= 0) return;
+    const c = window.customers.find(x => x && x.id === id);
+    c.total += action === 'add' ? amt : -amt;
+    const t = getFormattedTime();
+    c.lastTime = t;
+    const timeLabel = t.split('|')[0] + " " + t.split('|')[1];
+    if(!c.history) c.history = [];
+    c.history.unshift({ type: action==='add'?'Add':'Receive', amt: amt, total: c.total, time: timeLabel });
+    if(c.history.length > 20) c.history.pop();
+    saveLocalOnly(); 
+    if (window.syncIndividual) window.syncIndividual(c);
+    if (c.phone && /^\d+$/.test(c.phone.replace(/\s/g, ""))) {
+        let msg = action === 'add' ? `Dear Customer,\nRs. ${formatAmount(amt)} has been added to your account at AH Sweets.\nYour updated bill is Rs. ${formatAmount(c.total)}` : `Dear Customer,\nRs. ${formatAmount(amt)} has been received from your account at AH Sweets.\nYour updated bill is Rs. ${formatAmount(c.total)}`;
+        window.location.href = `sms:${c.phone}?body=${encodeURIComponent(msg)}`;
+    }
+    input.value = '';
+}
+
+function updateUI() {
+    if (!window.customers) return;
+    const list = document.getElementById('customer-list');
+    const alphaNav = document.getElementById('alpha-nav');
+    const showAllBtn = document.getElementById('showAllBtnTop');
+    const searchInput = document.getElementById('customerSearch');
+    const totalMoney = window.customers.reduce((sum, c) => sum + (c ? (c.total || 0) : 0), 0);
+    searchInput.placeholder = `🔍 Search ${window.customers.length} Customers...`;
+    list.innerHTML = '';
+    window.customers.sort((a, b) => (a && b) ? a.name.toLowerCase().localeCompare(b.name.toLowerCase()) : 0);
+    if (singleViewId) { alphaNav.style.display = 'none'; showAllBtn.style.display = 'block'; }
+    else {
+        alphaNav.style.display = 'flex'; showAllBtn.style.display = 'none';
+        const activeLetters = [...new Set(window.customers.filter(c=>c).map(c => {
+            let char = c.name.trim().charAt(0).toUpperCase();
+            return /[A-Z]/.test(char) ? char : '#';
+        }))].sort();
+        alphaNav.innerHTML = `<a href="#add-new-section" style="font-size: 18px; margin-bottom: 5px;">+</a>`;
+        activeLetters.forEach(char => { alphaNav.innerHTML += `<a href="#letter-${char === '#' ? 'HASH' : char}">${char}</a>`; });
+    }
+    let lastLetter = '';
+    let currentHTML = '';
+    window.customers.forEach((c) => {
+        if (!c || (singleViewId !== null && c.id !== singleViewId)) return;
+        let char = c.name.trim().charAt(0).toUpperCase();
+        if (!/[A-Z]/.test(char)) char = '#';
+        if (char !== lastLetter && singleViewId === null) {
+            currentHTML += `<div id="letter-${char === '#' ? 'HASH' : char}" class="letter-header"><div><span>${char}</span>${lastLetter === '' ? `<span class="total-credit-grey" ondblclick="showCalculatedLastUpdate()">~ ${formatAmount(Math.round(totalMoney))}</span>` : ''}</div></div>`;
+            lastLetter = char;
+        }
+        let displayTime = "";
+        if (c.lastTime && typeof c.lastTime === 'string' && c.lastTime.includes('|')) {
+            const parts = c.lastTime.split('|');
+            displayTime = (Date.now() - parseInt(parts[2]) > 86400000) ? parts[0] : parts[1];
+        }
+        currentHTML += `<div class="customer-box"><div class="customer-name" ondblclick="editCustomer(${c.id})">${c.name}</div><div class="total-amount" onclick="deleteTracker(${c.id})">Rs. ${formatAmount(Math.round(c.total))}</div><input type="number" id="input-${c.id}" class="input-box" placeholder="Amount"><div class="button-group"><button class="btn btn-add" onclick="updateBill(${c.id}, 'add')">Add</button><button class="btn btn-receive" onclick="updateBill(${c.id}, 'receive')">Receive</button></div>${displayTime ? `<div class="last-update-tag" onclick="showHistory(${c.id})">${displayTime}</div>` : ''}</div>`;
+    });
+    list.innerHTML = currentHTML;
+}
+
+function searchCustomer() {
+    const qInput = document.getElementById('customerSearch');
+    const q = qInput.value.toLowerCase().trim();
+    const res = document.getElementById('searchResults');
+    res.innerHTML = '';
+    if (q.length < 1) { res.style.display = 'none'; return; }
+    const filtered = window.customers.filter(c => c && c.name.toLowerCase().includes(q));
+    if (filtered.length > 0) {
+        res.style.display = 'block';
+        filtered.forEach(c => {
+            const row = document.createElement('div');
+            row.textContent = c.name;
+            row.onclick = () => { singleViewId = c.id; res.style.display = 'none'; qInput.value = ''; updateUI(); };
+            res.appendChild(row);
+        });
+    } else { res.style.display = 'none'; }
+}
+
+function clearSearch() { document.getElementById('customerSearch').value = ''; singleViewId = null; updateUI(); }
+
+function addNewCustomer() {
+    const n = document.getElementById('newCustomerName');
+    const p = document.getElementById('newCustomerPhone');
+    if (!n.value.trim()) return;
+    const newCust = { id: Date.now(), name: n.value.trim(), phone: p.value.trim() || "n", total: 0, history: [], lastTime: "" };
+    window.customers.push(newCust);
+    saveLocalOnly();
+    if (window.syncIndividual) window.syncIndividual(newCust);
+    n.value = ''; p.value = '';
+}
+
+function deleteTracker(id) {
+    const now = Date.now();
+    if (!totalClickTracker[id]) { totalClickTracker[id] = { count: 1, time: now }; return; }
+    if (now - totalClickTracker[id].time < 1500) totalClickTracker[id].count++; else totalClickTracker[id].count = 1;
+    totalClickTracker[id].time = now;
+    if (totalClickTracker[id].count >= 5) {
+        const c = window.customers.find(x => x && x.id === id);
+        if (confirm(`Delete ${c.name}?`)) { 
+            window.customers = window.customers.filter(x => x && x.id !== id); 
+            saveLocalOnly(); 
+            if (window.syncDelete) window.syncDelete(id);
+        }
+        totalClickTracker[id].count = 0;
+    }
+}
+
+function showHistory(id) {
+    const c = window.customers.find(x => x && x.id === id);
+    if (!c || !c.history) return;
+    const header = document.getElementById('histHeader');
+    header.innerText = c.name;
+    header.ondblclick = () => {
+        const num = prompt("How many history items to keep? (e.g. 5, 0 to clear all)");
+        if (num !== null) {
+            const count = parseInt(num);
+            c.history = isNaN(count) ? c.history : c.history.slice(0, count);
+            saveLocalOnly(); 
+            if (window.syncIndividual) window.syncIndividual(c);
+            showHistory(id);
+        }
+    };
+    let h = "";
+    c.history.forEach(it => { h += `<div class="history-item"><div style="font-weight:700; color:${it.type.includes('Add')?'#059669':'#ef4444'}">${it.type} :- ${formatAmount(it.amt)}</div><div style="color:#ffffff; margin: 3px 0;">Total Bill :- ${formatAmount(it.total)}</div><div style="font-size:0.75rem; color:#9ca3af">${it.time}</div></div>`; });
+    document.getElementById('histContent').innerHTML = h || `<div style="padding:20px; text-align:center; color:#9ca3af">No History</div>`;
+    document.getElementById('historyOverlay').style.display = 'flex';
+}
+
+function closeHistory() { document.getElementById('historyOverlay').style.display = 'none'; }
+function editCustomer(id) {
+    const c = window.customers.find(x => x && x.id === id);
+    const n = prompt("Edit Name", c.name);
+    if (n !== null) {
+        c.name = n.trim() || c.name;
+        const p = prompt("Edit Phone", c.phone);
+        if (p !== null) c.phone = p.trim() || "n";
+        saveLocalOnly();
+        if (window.syncIndividual) window.syncIndividual(c);
+    }
+}
+function handleBackup() { if (window.fullManualBackup) window.fullManualBackup(); }
+function handleRestore() {
+    if (!navigator.onLine) { document.getElementById('fileInput').click(); } 
+    else {
+        const choice = confirm("Restore from CLOUD?");
+        if (choice) { if(window.pullFromCloud) window.pullFromCloud(); }
+        else { document.getElementById('fileInput').click(); }
+    }
+}
+function downloadBackupFile() {
+    const fileName = "Backup_" + Date.now() + ".json";
+    const backupObj = { D: window.customers.filter(c=>c).map(c => ({ C: c.name, P: c.phone, T: c.total, I: c.id, H: c.history || [], L: c.lastTime || "" })) };
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupObj));
+    const link = document.createElement('a'); link.setAttribute('href', dataUri); link.setAttribute('download', fileName); link.click();
+}
+function restoreFromFile(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+        try {
+            const data = JSON.parse(ev.target.result);
+            if (data && data.D) {
+                window.customers = data.D.map(it => ({ id: it.I || Date.now(), name: it.C, phone: it.P || "n", total: it.T, history: it.H || [], lastTime: it.L || "" }));
+                localStorage.setItem('customers', JSON.stringify(window.customers));
+                localStorage.setItem('lastSyncTimestamp', Date.now());
+                updateUI();
+                if(window.checkSyncIntegrity) window.checkSyncIntegrity();
+            }
+        } catch (err) { alert("Invalid File"); }
+    };
+    reader.readAsText(file);
+}
+
+function showCalculatedLastUpdate() {
+    let latest = null;
+    window.customers.forEach(c => {
+        if (c && c.lastTime && typeof c.lastTime === 'string' && c.lastTime.includes('|')) {
+            const ts = parseInt(c.lastTime.split('|')[2]);
+            if (!latest || ts > latest.ts) { latest = { name: c.name, time: c.lastTime.split('|')[0] + " " + c.lastTime.split('|')[1], ts: ts }; }
+        }
+    });
+    if (latest) alert(`Last Update: ${latest.name}\nAt: ${latest.time}`);
+    else alert("No updates recorded yet.");
+}
+
+document.addEventListener('DOMContentLoaded', () => { 
+    updateUI(); 
+    refreshSyncLine(localStorage.getItem('storedSyncTime'), false);
+    setTimeout(() => { if(window.checkSyncIntegrity) window.checkSyncIntegrity(); }, 800);
+});
+</script>
+</body>
+</html>
