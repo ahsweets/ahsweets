@@ -183,14 +183,14 @@ window.syncDelete = async function(id) {
             localStorage.setItem('sync_blocked', 'true'); 
             window.checkSyncIntegrity(); 
         } 
-    }, 5500);
+    }, 7500);
 
     try {
         refreshSyncLine("Syncing....", false, true);
         const statusTime = getStatusPattern();
         await remove(ref(database, `app_data/${secret}/customers/${id}`));
         
-        if (Date.now() - reqTime > 5000 || localStorage.getItem('sync_blocked') === 'true') { 
+        if (Date.now() - reqTime > 7000 || localStorage.getItem('sync_blocked') === 'true') { 
             localStorage.setItem('sync_blocked', 'true');
             window.checkSyncIntegrity();
             return; 
