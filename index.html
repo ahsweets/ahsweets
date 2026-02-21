@@ -302,10 +302,10 @@ function refreshSyncLine(msg, isSuccess = false, isAmber = false, isError = fals
     else if (isAmber) { statusEl.innerHTML = msg || "Syncing...."; statusEl.style.color = "#f59e0b";
         syncTimeout = setTimeout(() => { if(statusEl.innerHTML && statusEl.innerHTML.includes("Syncing")) refreshSyncLine(time, false); }, 10000);
     } else if (isSuccess) { 
-        statusEl.innerHTML = `Last Sync at ${msg}`; 
+        statusEl.innerHTML = msg.length > 20 ? msg : `Last Sync at ${msg}`; 
         statusEl.style.color = "#059669"; 
     } else { 
-        statusEl.innerHTML = time === "Never" ? "Last Sync: Never" : `Last Sync at ${time}`; 
+        statusEl.innerHTML = time === "Never" ? "Last Sync: Never" : (time.length > 20 ? time : `Last Sync at ${time}`); 
         statusEl.style.color = "#9ca3af"; 
     }
 }
