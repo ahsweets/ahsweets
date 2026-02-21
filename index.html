@@ -206,7 +206,6 @@ window.syncDelete = async function(id) {
 
 window.fullManualBackup = async function() {
     if (window.customers.length <= 15) { refreshSyncLine("Try again later", false, true); return; }
-    if (!confirm("Are you sure you want to overwrite CLOUD data with LOCAL data?")) return;
     const statusTime = getStatusPattern();
     if (!navigator.onLine) { downloadBackupFile(); return; }
     const database = await getAppDb();
@@ -522,6 +521,15 @@ document.addEventListener('DOMContentLoaded', () => {
     updateUI(); 
     window.checkSyncIntegrity();
     refreshSyncLine(localStorage.getItem('storedSyncTime'), false);
+});
+    // Automatic backup on start if sync is blocked
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        if (localStorage.getItem('sync_blocked') === 'true') {
+            const backupBtn = document.getElementById('backupBtn');
+            if (backupBtn) backupBtn.click();
+        }
+    }, 1500);
 });
 </script>
 </body>
