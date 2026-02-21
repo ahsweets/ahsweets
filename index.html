@@ -140,7 +140,8 @@ window.syncIndividual = async function(cust) {
 
     const reqTime = Date.now();
     setTimeout(() => { 
-        if (parseInt(localStorage.getItem('lastEditTimestamp')) > parseInt(localStorage.getItem('lastSyncTimestamp'))) { 
+        const lastSync = parseInt(localStorage.getItem('lastSyncTimestamp')) || 0;
+if (reqTime > lastSync) { 
             localStorage.setItem('sync_blocked', 'true'); 
             window.checkSyncIntegrity(); 
         } 
@@ -179,7 +180,8 @@ window.syncDelete = async function(id) {
 
     const reqTime = Date.now();
     setTimeout(() => { 
-        if (parseInt(localStorage.getItem('lastEditTimestamp')) > parseInt(localStorage.getItem('lastSyncTimestamp'))) { 
+        const lastSync = parseInt(localStorage.getItem('lastSyncTimestamp')) || 0;
+if (reqTime > lastSync) { 
             localStorage.setItem('sync_blocked', 'true'); 
             window.checkSyncIntegrity(); 
         } 
