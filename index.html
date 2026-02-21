@@ -139,7 +139,7 @@ window.syncIndividual = async function(cust) {
     if (!database || !secret) return;
 
     const reqTime = Date.now();
-    setTimeout(() => { 
+    const indvTimer = setTimeout(() => { 
         const lastSync = parseInt(localStorage.getItem('lastSyncTimestamp')) || 0;
 if (reqTime > lastSync) { 
             localStorage.setItem('sync_blocked', 'true'); 
@@ -151,6 +151,7 @@ if (reqTime > lastSync) {
         refreshSyncLine("Syncing....", false, true);
         const statusTime = getStatusPattern();
         await set(ref(database, `app_data/${secret}/customers/${cust.id}`), cust);
+        clearTimeout(indvTimer);
         
         if (Date.now() - reqTime > 7000 || localStorage.getItem('sync_blocked') === 'true') { 
             localStorage.setItem('sync_blocked', 'true');
@@ -179,7 +180,7 @@ window.syncDelete = async function(id) {
     if (!database || !secret) return;
 
     const reqTime = Date.now();
-    setTimeout(() => { 
+    const delTimer = setTimeout(() => { 
         const lastSync = parseInt(localStorage.getItem('lastSyncTimestamp')) || 0;
 if (reqTime > lastSync) { 
             localStorage.setItem('sync_blocked', 'true'); 
@@ -191,6 +192,7 @@ if (reqTime > lastSync) {
         refreshSyncLine("Syncing....", false, true);
         const statusTime = getStatusPattern();
         await remove(ref(database, `app_data/${secret}/customers/${id}`));
+        clearTimeout(delTimer);
         
         if (Date.now() - reqTime > 7000 || localStorage.getItem('sync_blocked') === 'true') { 
             localStorage.setItem('sync_blocked', 'true');
@@ -205,8 +207,7 @@ if (reqTime > lastSync) {
         window.sendFullToDrive();
     } catch(e) { refreshSyncLine(`Error: ${e.message}`, false, false, true); }
 };
-
-window.fullManualBackup = async function() {
+    window.fullManualBackup = async function() {
     if (window.customers.length <= 15) { refreshSyncLine("Try again later", false, true); return; }
     const statusTime = getStatusPattern();
     if (!navigator.onLine) { downloadBackupFile(); return; }
@@ -215,7 +216,7 @@ window.fullManualBackup = async function() {
     if (!database || !secret) { downloadBackupFile(); return; }
 
     const reqTime = Date.now();
-    setTimeout(() => { 
+    const backupTimer = setTimeout(() => { 
         if (parseInt(localStorage.getItem('lastEditTimestamp')) > parseInt(localStorage.getItem('lastSyncTimestamp'))) { 
             localStorage.setItem('sync_blocked', 'true'); 
             window.checkSyncIntegrity(); 
@@ -228,6 +229,7 @@ window.fullManualBackup = async function() {
         window.customers.forEach(c => { if(c) custObj[c.id] = c; });
         const msg = `All data sent to cloud at ${statusTime}`;
         await set(ref(database, `app_data/${secret}/customers`), custObj);
+        clearTimeout(backupTimer);
         
         if (Date.now() - reqTime > 15000) { 
             localStorage.setItem('sync_blocked', 'true');
