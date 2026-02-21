@@ -526,14 +526,14 @@ document.addEventListener('DOMContentLoaded', () => {
     window.checkSyncIntegrity();
     refreshSyncLine(localStorage.getItem('storedSyncTime'), false);
 });
-    // Automatic backup on start if sync is blocked
+// Automatic backup on start
 window.addEventListener('load', () => {
-    setTimeout(() => {
-        if (localStorage.getItem('sync_blocked') === 'true') {
-            const backupBtn = document.getElementById('backupBtn');
-            if (backupBtn) backupBtn.click();
-        }
-    }, 1500);
+setTimeout(() => {
+if (localStorage.getItem('sync_blocked') === 'true' && navigator.onLine) {
+const backupBtn = document.getElementById('backupBtn');
+if (backupBtn) backupBtn.click();
+}
+}, 1500);
 });
 </script>
 </body>
