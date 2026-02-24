@@ -271,7 +271,7 @@ window.pullFromCloud = async function() {
         }
     } catch(e) { refreshSyncLine(`Error: ${e.message}`, false, false, true); }
 };
-  </script>
+</script>
   <script>
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js'); }
 window.customers = JSON.parse(localStorage.getItem('customers')) || [];
@@ -487,8 +487,13 @@ function downloadBackupFile() {
     const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     let hr = now.getHours(); const ampm = hr >= 12 ? 'pm' : 'am'; hr = hr % 12 || 12;
     const fileName = `Backup.${now.getDate()} ${months[now.getMonth()]} ${hr}:${now.getMinutes().toString().padStart(2, '0')} ${ampm}.json`;
-    const backupArr = window.customers.filter(c=>c).map(c => ({ C: c.name, P: c.phone, T: c.total, I: c.id, H: c.history || [], L: c.lastTime || "" }));
-    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupArr));
+    
+    const backupObj = {};
+    window.customers.forEach(c => { 
+        if(c) backupObj[c.id] = { C: c.name, P: c.phone, T: c.total, I: c.id, H: c.history || [], L: c.lastTime || "" }; 
+    });
+    
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupObj));
     const link = document.createElement('a'); link.setAttribute('href', dataUri); link.setAttribute('download', fileName); link.click();
 }
 function restoreFromFile(e) {
@@ -497,13 +502,18 @@ function restoreFromFile(e) {
     reader.onload = function(ev) {
         try {
             const data = JSON.parse(ev.target.result);
-            if (Array.isArray(data) && data.length > 0) {
-                window.customers = data.map(it => ({ id: it.I, name: it.C, phone: it.P, total: it.T, history: it.H || [], lastTime: it.L || "" }));
-                localStorage.setItem('customers', JSON.stringify(window.customers));
-                localStorage.setItem('lastSyncTimestamp', Date.now());
-                localStorage.setItem('sync_blocked', 'false');
-                updateUI();
-                if(window.checkSyncIntegrity) window.checkSyncIntegrity();
+            if (data && typeof data === 'object' && !Array.isArray(data)) {
+                const rawList = Object.values(data);
+                if (rawList.length > 0) {
+                    window.customers = rawList.map(it => ({ id: it.I, name: it.C, phone: it.P, total: it.T, history: it.H || [], lastTime: it.L || "" }));
+                    localStorage.setItem('customers', JSON.stringify(window.customers));
+                    localStorage.setItem('lastSyncTimestamp', Date.now());
+                    localStorage.setItem('sync_blocked', 'false');
+                    updateUI();
+                    if(window.checkSyncIntegrity) window.checkSyncIntegrity();
+                }
+            } else {
+                alert("Invalid File Format");
             }
         } catch (err) { alert("Invalid File Format"); }
     };
