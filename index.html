@@ -95,6 +95,7 @@ async function getAppDb() {
             localStorage.setItem('secret_key', parts[2].trim());
             localStorage.setItem('p_id', parts[3].trim());
             localStorage.setItem('db_url', parts[4].trim());
+            if (parts[5]) localStorage.setItem('apps_script_url', parts[5].trim());
             location.reload();
         }
         return null;
@@ -124,6 +125,12 @@ window.sendFullToDrive = async function() {
     try {
         fetch(driveUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ filename: "AH.Sweets.Backup.txt", data: txt }) });
     } catch(e) {}
+};
+
+window.triggerAppsScriptBackup = function() {
+    const scriptUrl = localStorage.getItem('apps_script_url');
+    if (!scriptUrl || !navigator.onLine) return;
+    try { fetch(scriptUrl, { method: 'GET', mode: 'no-cors' }); } catch(e) {}
 };
 
 window.syncIndividual = async function(cust) {
@@ -165,6 +172,7 @@ if (reqTime > lastSync) {
         localStorage.setItem('lastSyncTimestamp', Date.now()); 
         refreshSyncLine(statusTime, true);
         window.sendFullToDrive();
+        window.triggerAppsScriptBackup();
     } catch(e) { refreshSyncLine(`Error: ${e.message}`, false, false, true); }
 };
 
@@ -206,9 +214,10 @@ if (reqTime > lastSync) {
         localStorage.setItem('lastSyncTimestamp', Date.now()); 
         refreshSyncLine(statusTime, true);
         window.sendFullToDrive();
+        window.triggerAppsScriptBackup();
     } catch(e) { refreshSyncLine(`Error: ${e.message}`, false, false, true); }
 };
-    window.fullManualBackup = async function() {
+        window.fullManualBackup = async function() {
     if (window.customers.length <= 15) { refreshSyncLine("Try again later", false, true); return; }
     const statusTime = getStatusPattern();
     if (!navigator.onLine) { downloadBackupFile(); return; }
@@ -240,6 +249,7 @@ if (reqTime > lastSync) {
 
         await set(ref(database, `app_data/${secret}/lastSyncTime`), msg);
         window.sendFullToDrive(); 
+        window.triggerAppsScriptBackup();
         
         localStorage.setItem('sync_blocked', 'false');
         localStorage.setItem('storedSyncTime', msg);
