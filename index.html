@@ -190,7 +190,6 @@ window.syncIndividual = async function(cust) {
         window.triggerAppsScriptBackup();
     } catch(e) { refreshSyncLine(`Error: ${e.message}`, false, false, true); }
 };
-
 window.syncDelete = async function(id) {
     if (localStorage.getItem('sync_blocked') === 'true') { window.checkSyncIntegrity(); return; }
     if (!navigator.onLine || window.customers.length <= 15) { 
@@ -224,8 +223,7 @@ window.syncDelete = async function(id) {
         window.triggerAppsScriptBackup();
     } catch(e) { refreshSyncLine(`Error: ${e.message}`, false, false, true); }
 };
-
-window.fullManualBackup = async function() {
+    window.fullManualBackup = async function() {
     if (window.customers.length <= 15) { refreshSyncLine("Try again later", false, true); return; }
     const statusTime = getStatusPattern();
     if (!navigator.onLine) { downloadBackupFile(); return; }
@@ -291,6 +289,14 @@ let syncTimeout = null;
 let singleViewId = null;
 const totalClickTracker = {};
 
+function logSystemActivity(action, name) {
+    let logs = JSON.parse(localStorage.getItem('system_activities')) || [];
+    const timeLabel = getFormattedTime().split('|')[0];
+    logs.unshift(`${action.charAt(0).toUpperCase() + action.slice(1)} ${name} at ${timeLabel}`);
+    if (logs.length > 5) logs = logs.slice(0, 5);
+    localStorage.setItem('system_activities', JSON.stringify(logs));
+}
+
 function getFormattedTime() {
     const now = new Date();
     const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -340,6 +346,7 @@ function updateBill(id, action) {
     c.total += action === 'add' ? amt : -amt;
     const t = getFormattedTime();
     c.lastTime = t;
+    logSystemActivity('update', c.name);
     const timeLabel = t.split('|')[0];
     if(!c.history) c.history = [];
     c.history.unshift({ a: (action === 'add' ? '+' : '-') + amt, t: c.total, d: timeLabel });
@@ -422,7 +429,6 @@ function addNewCustomer() {
     const newCust = { id: Date.now(), name: n.value.trim(), phone: p.value.trim() || "n", total: 0, history: [], lastTime: "" };
     window.customers.push(newCust);
     saveLocalOnly();
-    if (window.syncIndividual) window.syncIndividual(newCust);
     n.value = ''; p.value = '';
 }
 
@@ -434,6 +440,7 @@ function deleteTracker(id) {
     if (totalClickTracker[id].count >= 5) {
         const c = window.customers.find(x => x && x.id === id);
         if (confirm(`Delete ${c.name}?`)) { 
+            logSystemActivity('delete', c.name);
             window.customers = window.customers.filter(x => x && x.id !== id); 
             saveLocalOnly(); 
             if (window.syncDelete) window.syncDelete(id);
@@ -464,6 +471,7 @@ function editCustomer(id) {
         c.name = n.trim() || c.name;
         const p = prompt("Edit Phone", c.phone);
         if (p !== null) c.phone = p.trim() || "n";
+        logSystemActivity('edit', c.name);
         saveLocalOnly();
         if (window.syncIndividual) window.syncIndividual(c);
     }
@@ -510,15 +518,22 @@ function restoreFromFile(e) {
 }
 
 function showCalculatedLastUpdate() {
-    let latest = null;
-    window.customers.forEach(c => {
-        if (c && c.lastTime && typeof c.lastTime === 'string' && c.lastTime.includes('|')) {
-            const ts = parseInt(c.lastTime.split('|')[2]);
-            if (!latest || ts > latest.ts) { latest = { name: c.name, time: c.lastTime.split('|')[0] + " " + c.lastTime.split('|')[1], ts: ts }; }
-        }
-    });
-    if (latest) alert(`Last Update: ${latest.name}\nAt: ${latest.time}`);
-    else alert("No updates recorded yet.");
+    const logs = JSON.parse(localStorage.getItem('system_activities')) || [];
+    if (logs.length > 0) {
+        const logDisplay = logs.map((log, index) => `${logs.length - index}. ${log}`).join('\n');
+        alert(logDisplay);
+    } else {
+        let latest = null;
+        window.customers.forEach(c => {
+            if (c && c.lastTime && typeof c.lastTime === 'string' && c.lastTime.includes('|')) {
+                const parts = c.lastTime.split('|');
+                const ts = parseInt(parts[1]);
+                if (!latest || ts > latest.ts) { latest = { name: c.name, time: parts[0], ts: ts }; }
+            }
+        });
+        if (latest) alert(`Last Update: ${latest.name}\nAt: ${latest.time}`);
+        else alert("No updates recorded yet.");
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => { 
