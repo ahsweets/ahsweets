@@ -42,11 +42,15 @@ body { background-color: var(--bg); margin: 0; padding: 0; display: flex; justif
 .history-close { padding: 15px; text-align: center; background: var(--primary); color: white; cursor: pointer; font-weight: 700; }
 .show-all-btn { width: 100%; margin: 10px 0; padding: 12px; background: #374151; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; text-align: center; }
 
+/* New Features CSS */
 .mini-popup { position: fixed; top: 15px; right: 15px; background: #ffffff; color: #1e1e1e; padding: 6px 10px; border-radius: 6px; display: flex; align-items: center; gap: 6px; font-size: 0.75rem; font-weight: 700; box-shadow: 0 4px 10px rgba(0,0,0,0.4); z-index: 10000; animation: popupSlideIn 0.3s ease-out; transition: opacity 0.4s ease; }
 @keyframes popupSlideIn { from { transform: translateX(50px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 .popup-icon { width: 14px; height: 14px; flex-shrink: 0; }
 .popup-success { color: #059669; }
 .popup-error { color: #ef4444; }
+.shortcut-container { display: flex; justify-content: space-between; gap: 4px; margin-bottom: 15px; background: #2c2c2c; padding: 8px; border-radius: 10px; border: 1px solid var(--border); box-sizing: border-box; height: 50px; }
+.shortcut-box { flex: 1; height: 100%; border: 1px dashed #4b5563; border-radius: 6px; display: flex; justify-content: center; align-items: center; cursor: pointer; color: var(--text-light); font-size: 7px; font-weight: 700; text-align: center; line-height: 1.1; overflow: hidden; }
+.shortcut-box.filled { border: 1px solid var(--primary); color: var(--success); background: rgba(5, 150, 105, 0.05); }
 </style>
 </head>
 <body oncontextmenu="return false;">
@@ -71,6 +75,8 @@ body { background-color: var(--bg); margin: 0; padding: 0; display: flex; justif
         <input type="file" id="fileInput" style="display:none" onchange="restoreFromFile(event)">
     </div>
     
+    <div id="shortcut-container" class="shortcut-container"></div>
+    
     <div id="customer-list"></div>
     
     <button class="show-all-btn" style="width:100%; display:none; margin-top:15px; margin-bottom: 20px;" id="showAllBtnTop" onclick="clearSearch()">Show All Customers</button>
@@ -83,6 +89,7 @@ body { background-color: var(--bg); margin: 0; padding: 0; display: flex; justif
     </div>
     <div class="bottom-spacer"></div>
 </div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getDatabase, ref, set, update, get, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
@@ -128,8 +135,6 @@ window.showMiniPopup = function(message, type) {
         ? `<svg class="popup-icon popup-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>` 
         : `<svg class="popup-icon popup-error" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>`;
     popup.innerHTML = `${iconHTML}<span>${message}</span>`;
-    const active = document.querySelectorAll('.mini-popup');
-    if (active.length > 0) popup.style.top = (15 + (active.length * 42)) + 'px';
     document.body.appendChild(popup);
     setTimeout(() => { popup.style.opacity = '0'; setTimeout(() => popup.remove(), 400); }, 4500);
 };
@@ -140,20 +145,14 @@ window.sendFullToDrive = async function() {
     const txt = window.customers.map(c => `${c.name} =${c.total}`).join('\n');
     try {
         const response = await fetch(driveUrl, { method: 'POST', body: JSON.stringify({ filename: "AH.Sweets.Backup.txt", data: txt }) });
-        if (response.ok) window.showMiniPopup("TXT Done", "success");
-        else window.showMiniPopup("TXT Fail", "error");
-    } catch(e) { window.showMiniPopup("TXT Fail", "error"); }
+        if (response.ok) window.showMiniPopup("Success", "success");
+    } catch(e) {}
 };
 
 window.triggerAppsScriptBackup = async function() {
     const scriptUrl = localStorage.getItem('apps_script_url');
     if (!scriptUrl || !navigator.onLine) return;
-    try { 
-        const response = await fetch(scriptUrl, { method: 'GET' }); 
-        const resultText = await response.text();
-        if (response.ok && resultText === "Backup Success") window.showMiniPopup("Backup Done", "success");
-        else window.showMiniPopup("Backup Fail", "error");
-    } catch(e) { window.showMiniPopup("Backup Fail", "error"); }
+    try { fetch(scriptUrl, { mode: 'no-cors' }); } catch(e) {}
 };
 
 window.syncIndividual = async function(cust) {
@@ -190,6 +189,7 @@ window.syncIndividual = async function(cust) {
         window.triggerAppsScriptBackup();
     } catch(e) { refreshSyncLine(`Error: ${e.message}`, false, false, true); }
 };
+
 window.syncDelete = async function(id) {
     if (localStorage.getItem('sync_blocked') === 'true') { window.checkSyncIntegrity(); return; }
     if (!navigator.onLine || window.customers.length <= 15) { 
@@ -223,7 +223,8 @@ window.syncDelete = async function(id) {
         window.triggerAppsScriptBackup();
     } catch(e) { refreshSyncLine(`Error: ${e.message}`, false, false, true); }
 };
-    window.fullManualBackup = async function() {
+
+window.fullManualBackup = async function() {
     if (window.customers.length <= 15) { refreshSyncLine("Try again later", false, true); return; }
     const statusTime = getStatusPattern();
     if (!navigator.onLine) { downloadBackupFile(); return; }
@@ -282,18 +283,21 @@ window.pullFromCloud = async function() {
     } catch(e) { refreshSyncLine(`Error: ${e.message}`, false, false, true); }
 };
 </script>
+
 <script>
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js'); }
 window.customers = JSON.parse(localStorage.getItem('customers')) || [];
 let syncTimeout = null;
 let singleViewId = null;
+let shortcutHoldTimer = null;
+window.assigningShortcutIndex = undefined;
 const totalClickTracker = {};
 
 function logSystemActivity(action, name) {
     let logs = JSON.parse(localStorage.getItem('system_activities')) || [];
     const timeLabel = getFormattedTime().split('|')[0];
     logs.unshift(`${action.charAt(0).toUpperCase() + action.slice(1)} ${name} at ${timeLabel}`);
-    if (logs.length > 5) logs = logs.slice(0, 5);
+    if (logs.length > 7) logs = logs.slice(0, 7);
     localStorage.setItem('system_activities', JSON.stringify(logs));
 }
 
@@ -338,6 +342,52 @@ window.checkSyncIntegrity = function() {
 
 function saveLocalOnly() { localStorage.setItem('customers', JSON.stringify(window.customers)); localStorage.setItem('lastEditTimestamp', Date.now()); updateUI(); }
 
+/* Shortcut Functions */
+function handleHoldStart(index) {
+    shortcutHoldTimer = setTimeout(() => {
+        let shortcuts = JSON.parse(localStorage.getItem('shortcuts')) || [null,null,null,null,null,null];
+        if (shortcuts[index] && confirm("Remove this shortcut?")) {
+            shortcuts[index] = null;
+            localStorage.setItem('shortcuts', JSON.stringify(shortcuts));
+            renderShortcuts();
+        }
+    }, 3000);
+}
+function handleHoldEnd() { if (shortcutHoldTimer) clearTimeout(shortcutHoldTimer); }
+
+function handleShortcutClick(index) {
+    let shortcuts = JSON.parse(localStorage.getItem('shortcuts')) || [null,null,null,null,null,null];
+    if (shortcuts[index]) {
+        singleViewId = shortcuts[index];
+        updateUI();
+    } else {
+        window.assigningShortcutIndex = index;
+        const searchInput = document.getElementById('customerSearch');
+        searchInput.focus();
+        searchInput.placeholder = "🔍 Search to assign...";
+    }
+}
+
+function renderShortcuts() {
+    let shortcuts = JSON.parse(localStorage.getItem('shortcuts')) || [null,null,null,null,null,null];
+    const container = document.getElementById('shortcut-container');
+    if (!container) return;
+    container.innerHTML = '';
+    for(let i=0; i<6; i++) {
+        let c = window.customers.find(x => x && x.id === shortcuts[i]);
+        const box = document.createElement('div');
+        box.className = c ? "shortcut-box filled" : "shortcut-box";
+        box.onmousedown = box.ontouchstart = () => handleHoldStart(i);
+        box.onmouseup = box.onmouseleave = box.ontouchend = () => handleHoldEnd();
+        box.onclick = () => handleShortcutClick(i);
+        if (c) {
+            let names = c.name.trim().split(/\s+/);
+            box.innerHTML = names.length > 1 ? `${names[0]}<br>${names[1]}` : names[0];
+        } else { box.innerHTML = '+'; }
+        container.appendChild(box);
+    }
+}
+
 function updateBill(id, action) {
     const input = document.getElementById(`input-${id}`);
     const amt = parseFloat(input.value);
@@ -350,14 +400,25 @@ function updateBill(id, action) {
     const timeLabel = t.split('|')[0];
     if(!c.history) c.history = [];
     c.history.unshift({ a: (action === 'add' ? '+' : '-') + amt, t: c.total, d: timeLabel });
-    const hasAlphabet = /[a-zA-Z]/.test(c.phone);
-    const historyLimit = hasAlphabet ? 7 : 3;
+    
+    const isW = c.phone && c.phone.toLowerCase().includes('w');
+    const historyLimit = isW ? 7 : 3;
     if(c.history.length > historyLimit) { c.history = c.history.slice(0, historyLimit); }
+    
     saveLocalOnly(); 
     if (window.syncIndividual) window.syncIndividual(c);
-    if (c.phone && /^\d+$/.test(c.phone.replace(/\s/g, ""))) {
+
+    if (c.phone && c.phone !== 'n') {
+        let cleanPhone = c.phone.toLowerCase().replace(/w/g, '').replace(/\s/g, "");
+        if (cleanPhone.startsWith('0')) cleanPhone = '+92' + cleanPhone.slice(1);
+        
         let msg = action === 'add' ? `Dear Customer,\nRs. ${formatAmount(amt)} has been added to your account at AH Sweets.\nYour updated bill is Rs. ${formatAmount(c.total)}` : `Dear Customer,\nRs. ${formatAmount(amt)} has been received from your account at AH Sweets.\nYour updated bill is Rs. ${formatAmount(c.total)}`;
-        window.location.href = `sms:${c.phone}?body=${encodeURIComponent(msg)}`;
+        
+        if (isW) {
+            window.location.href = `https://wa.me/${cleanPhone.replace(/\+/g,'')}?text=${encodeURIComponent(msg)}`;
+        } else if (/^\d+$/.test(cleanPhone.replace(/\+/g,''))) {
+            window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(msg)}`;
+        }
     }
     input.value = '';
 }
@@ -371,7 +432,9 @@ function updateUI() {
     const totalMoney = window.customers.reduce((sum, c) => sum + (c ? (c.total || 0) : 0), 0);
     searchInput.placeholder = `🔍 Search ${window.customers.length} Customers...`;
     list.innerHTML = '';
+    renderShortcuts();
     window.customers.sort((a, b) => (a && b) ? a.name.toLowerCase().localeCompare(b.name.toLowerCase()) : 0);
+    
     if (singleViewId) { alphaNav.style.display = 'none'; showAllBtn.style.display = 'block'; }
     else {
         alphaNav.style.display = 'flex'; showAllBtn.style.display = 'none';
@@ -382,6 +445,7 @@ function updateUI() {
         alphaNav.innerHTML = `<a href="#add-new-section" style="font-size: 18px; margin-bottom: 5px;">+</a>`;
         activeLetters.forEach(char => { alphaNav.innerHTML += `<a href="#letter-${char === '#' ? 'HASH' : char}">${char}</a>`; });
     }
+
     let lastLetter = '';
     let currentHTML = '';
     window.customers.forEach((c) => {
@@ -407,17 +471,42 @@ function searchCustomer() {
     const q = qInput.value.toLowerCase().trim();
     const res = document.getElementById('searchResults');
     res.innerHTML = '';
-    if (q.length < 1) { res.style.display = 'none'; return; }
+    if (q.length < 1) { 
+        res.style.display = 'none'; 
+        if (window.assigningShortcutIndex !== undefined) window.assigningShortcutIndex = undefined;
+        return; 
+    }
     const filtered = window.customers.filter(c => c && c.name.toLowerCase().includes(q));
     if (filtered.length > 0) {
         res.style.display = 'block';
         filtered.forEach(c => {
             const row = document.createElement('div');
             row.textContent = c.name;
-            row.onclick = () => { singleViewId = c.id; res.style.display = 'none'; qInput.value = ''; updateUI(); };
+            row.onclick = () => { 
+                if (window.assigningShortcutIndex !== undefined) {
+                    let shortcuts = JSON.parse(localStorage.getItem('shortcuts')) || [null,null,null,null,null,null];
+                    shortcuts[window.assigningShortcutIndex] = c.id;
+                    localStorage.setItem('shortcuts', JSON.stringify(shortcuts));
+                    window.assigningShortcutIndex = undefined;
+                    res.style.display = 'none'; qInput.value = ''; updateUI(); 
+                } else {
+                    singleViewId = c.id; res.style.display = 'none'; qInput.value = ''; updateUI(); 
+                }
+            };
             res.appendChild(row);
         });
-    } else { res.style.display = 'none'; }
+    } else {
+        res.style.display = 'block';
+        const createRow = document.createElement('div');
+        createRow.textContent = `+ Create: ${qInput.value}`;
+        createRow.style.color = 'var(--amber)';
+        createRow.onclick = () => {
+            document.getElementById('newCustomerName').value = qInput.value;
+            window.location.hash = "add-new-section";
+            res.style.display = 'none'; qInput.value = '';
+        };
+        res.appendChild(createRow);
+    }
 }
 
 function clearSearch() { document.getElementById('customerSearch').value = ''; singleViewId = null; updateUI(); }
@@ -487,9 +576,7 @@ function handleRestore() {
 }
 function downloadBackupFile() {
     const now = new Date();
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    let hr = now.getHours(); const ampm = hr >= 12 ? 'pm' : 'am'; hr = hr % 12 || 12;
-    const fileName = `Backup.${now.getDate()} ${months[now.getMonth()]} ${hr}:${now.getMinutes().toString().padStart(2, '0')} ${ampm}.json`;
+    const fileName = `Backup.${now.getDate()}.json`;
     const backupObj = {};
     window.customers.forEach(c => { if(c) backupObj[c.id] = { C: c.name, P: c.phone, T: c.total, I: c.id, H: c.history || [], L: c.lastTime || "" }; });
     const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupObj));
@@ -509,9 +596,8 @@ function restoreFromFile(e) {
                     localStorage.setItem('lastSyncTimestamp', Date.now());
                     localStorage.setItem('sync_blocked', 'false');
                     updateUI();
-                    if(window.checkSyncIntegrity) window.checkSyncIntegrity();
                 }
-            } else { alert("Invalid File Format"); }
+            }
         } catch (err) { alert("Invalid File Format"); }
     };
     reader.readAsText(file);
@@ -519,9 +605,14 @@ function restoreFromFile(e) {
 
 function showCalculatedLastUpdate() {
     const logs = JSON.parse(localStorage.getItem('system_activities')) || [];
+    const header = document.getElementById('histHeader');
+    header.innerText = "Last 7 Activities";
+    let h = "";
     if (logs.length > 0) {
-        const logDisplay = logs.map((log, index) => `${logs.length - index}. ${log}`).join('\n');
-        alert(logDisplay);
+        logs.forEach((log, index) => {
+            const color = index % 2 === 0 ? '#3b82f6' : 'var(--amber)';
+            h += `<div class="history-item" style="color: ${color}; font-weight: 600; font-size: 0.9rem;">${logs.length - index}. ${log}</div>`;
+        });
     } else {
         let latest = null;
         window.customers.forEach(c => {
@@ -531,9 +622,11 @@ function showCalculatedLastUpdate() {
                 if (!latest || ts > latest.ts) { latest = { name: c.name, time: parts[0], ts: ts }; }
             }
         });
-        if (latest) alert(`Last Update: ${latest.name}\nAt: ${latest.time}`);
-        else alert("No updates recorded yet.");
+        if (latest) h = `<div class="history-item" style="color:#3b82f6">Latest: ${latest.name}<br>${latest.time}</div>`;
+        else h = `<div style="padding:20px; text-align:center; color:#9ca3af">No updates recorded yet.</div>`;
     }
+    document.getElementById('histContent').innerHTML = h;
+    document.getElementById('historyOverlay').style.display = 'flex';
 }
 
 document.addEventListener('DOMContentLoaded', () => { 
