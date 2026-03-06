@@ -402,7 +402,7 @@ function updateBill(id, action) {
     c.history.unshift({ a: (action === 'add' ? '+' : '-') + amt, t: c.total, d: timeLabel });
     
     const isW = c.phone && c.phone.toLowerCase().includes('w');
-    const historyLimit = isW ? 7 : 3;
+    const historyLimit = (c.phone && !isW && /[a-z]/i.test(c.phone)) ? 7 : 3;
     if(c.history.length > historyLimit) { c.history = c.history.slice(0, historyLimit); }
     
     saveLocalOnly(); 
