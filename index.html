@@ -72,8 +72,8 @@ body { background-color: var(--bg); margin: 0; padding: 0; display: flex; justif
     <div class="header-row" id="mainHeader"><div class="header-title">AH Sweets ~ Ali Haider</div></div>
     <div id="syncStatusLine">Last Sync: Never</div>
     <div class="search-container">
-        <div id="smsTimerContainer" style="position:relative; height:18px;"><div id="smsTimer" style="position:absolute; right:2px; top:-5px; font-weight:bold; color:var(--amber); font-size:0.75rem; display:none;"></div></div>
         <div style="position: relative;">
+            <div id="smsTimer" style="position:absolute; right:2px; top:-16px; font-weight:bold; color:var(--amber); font-size:0.75rem; display:none; z-index: 1002;"></div>
             <input type="text" id="customerSearch" oninput="searchCustomer()" placeholder="🔍 Search Customers..." autocomplete="off">
             <div id="liveSignal" class="signal-indicator signal-red"></div>
         </div>
@@ -81,7 +81,7 @@ body { background-color: var(--bg); margin: 0; padding: 0; display: flex; justif
     </div>
     <div id="alpha-nav" class="alpha-nav"></div>
     <div class="btn-container" id="topButtons" style="display: flex; gap: 10px; margin-bottom: 20px;">
-        <button class="btn btn-backup" id="backupBtn" style="flex:1" onclick="handleBackup()">⌛ Backup</button>
+        <button class="btn btn-backup" id="backupBtn" style="flex:1" onclick="handleBackup()" onmousedown="startBackupHold()" onmouseup="clearBackupHold()" onmouseleave="clearBackupHold()" ontouchstart="startBackupHold()" ontouchend="clearBackupHold()">⌛ Backup</button>
         <button class="btn btn-backup" style="flex:1" onclick="handleRestore()">⏳ Restore</button>
         <input type="file" id="fileInput" style="display:none" onchange="restoreFromFile(event)">
     </div>
@@ -104,6 +104,20 @@ body { background-color: var(--bg); margin: 0; padding: 0; display: flex; justif
     <div class="bottom-spacer"></div>
 </div>
 
+<div id="customModalOverlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:10005; display:none; justify-content:center; align-items:center;">
+    <div style="background:#2c2c2c; width:90%; max-width:350px; border-radius:16px; border:1px solid var(--border); overflow:hidden; display:flex; flex-direction:column; font-family:'Inter',sans-serif; box-shadow:0 4px 20px rgba(0,0,0,0.5);">
+        <div id="customModalMessage" style="padding:20px; color:var(--text-dark); font-weight:600; text-align:center; font-size:1rem; border-bottom:1px solid rgba(255,255,255,0.05); white-space:pre-wrap;"></div>
+        <div id="customModalInputContainer" style="padding:15px; display:none; border-bottom:1px solid rgba(255,255,255,0.05);">
+            <input type="text" id="customModalInput" class="input-box" style="margin:0; width:100%; box-sizing:border-box;">
+        </div>
+        <div id="customModalChoices" style="display:none; flex-direction:column; max-height:250px; overflow-y:auto;"></div>
+        <div id="customModalButtons" style="display:flex;">
+            <button id="customModalCancel" style="flex:1; padding:15px; background:#374151; color:white; border:none; font-weight:600; cursor:pointer; border-right:1px solid var(--border);">Cancel</button>
+            <button id="customModalOk" style="flex:1; padding:15px; background:var(--primary); color:white; border:none; font-weight:600; cursor:pointer;">OK</button>
+        </div>
+    </div>
+</div>
+
 <div id="scrollTopBtn" class="scroll-to-top" onclick="window.scrollTo(0,0)">↑</div>
 
 <script type="module">
@@ -119,7 +133,7 @@ async function getAppDb() {
     let dbUrl = localStorage.getItem('db_url');
 
     if (!fbKey || !secret || !pId || !dbUrl) {
-        let pasted = prompt("Paste your Cloud Structure here");
+        let pasted = await window.customPrompt("Paste your Cloud Structure here", "");
         if (pasted && pasted.includes('+')) {
             let parts = pasted.split('+');
             localStorage.setItem('fb_key', parts[0].trim());
@@ -249,12 +263,12 @@ window.syncDelete = async function(id) {
 };
 
 window.fullManualBackup = async function() {
-    if (window.currentSignal === 'red' || window.customers.length <= 15) { refreshSyncLine("Try again later", false, true); return; }
+    if (window.currentSignal === 'red' || !navigator.onLine) { refreshSyncLine("You are offline", false, true); return; }
+    if (window.customers.length <= 15) { refreshSyncLine("Try again later", false, true); return; }
     const statusTime = getStatusPattern();
-    if (!navigator.onLine) { downloadBackupFile(); return; }
     const database = await getAppDb();
     const secret = localStorage.getItem('secret_key');
-    if (!database || !secret) { downloadBackupFile(); return; }
+    if (!database || !secret) { return; }
     const reqTime = Date.now();
     const backupTimer = setTimeout(() => { 
         if (parseInt(localStorage.getItem('lastEditTimestamp')) > parseInt(localStorage.getItem('lastSyncTimestamp'))) { 
@@ -313,6 +327,66 @@ window.pullFromCloud = async function() {
 </script>
 
 <script>
+window.showCustomModal = function(options) {
+    return new Promise(resolve => {
+        const overlay = document.getElementById('customModalOverlay');
+        const msgEl = document.getElementById('customModalMessage');
+        const inpCont = document.getElementById('customModalInputContainer');
+        const inpEl = document.getElementById('customModalInput');
+        const choicesEl = document.getElementById('customModalChoices');
+        const btnCont = document.getElementById('customModalButtons');
+        const btnCancel = document.getElementById('customModalCancel');
+        const btnOk = document.getElementById('customModalOk');
+
+        msgEl.innerText = options.message || '';
+        inpCont.style.display = options.type === 'prompt' ? 'block' : 'none';
+        choicesEl.style.display = options.type === 'choice' ? 'flex' : 'none';
+        
+        btnOk.style.display = options.type === 'choice' ? 'none' : 'block';
+        btnCancel.style.display = options.type === 'alert' ? 'none' : 'block';
+        
+        if (options.type === 'prompt') {
+            inpEl.value = options.defaultText || '';
+            setTimeout(() => inpEl.focus(), 100);
+        }
+
+        if (options.type === 'choice') {
+            choicesEl.innerHTML = '';
+            options.choices.forEach(c => {
+                let div = document.createElement('div');
+                div.style.cssText = "padding:15px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.05); color:var(--success); font-weight:600; cursor:pointer;";
+                div.innerText = c.label;
+                div.onclick = () => { close(); resolve(c.value); };
+                choicesEl.appendChild(div);
+            });
+        }
+
+        btnOk.onclick = () => {
+            close();
+            if (options.type === 'prompt') resolve(inpEl.value);
+            else resolve(true);
+        };
+        
+        btnCancel.onclick = () => {
+            close();
+            if (options.type === 'prompt') resolve(null);
+            else resolve(false);
+        };
+
+        const close = () => {
+            overlay.style.display = 'none';
+            btnOk.onclick = null;
+            btnCancel.onclick = null;
+        };
+
+        overlay.style.display = 'flex';
+    });
+};
+
+window.customAlert = (msg) => window.showCustomModal({type: 'alert', message: msg});
+window.customConfirm = (msg) => window.showCustomModal({type: 'confirm', message: msg});
+window.customPrompt = (msg, def) => window.showCustomModal({type: 'prompt', message: msg, defaultText: def});
+
 window.currentSignal = 'red';
 window.startLiveSignal = function() {
     setInterval(() => {
@@ -339,7 +413,10 @@ window.customers = JSON.parse(localStorage.getItem('customers')) || [];
 let syncTimeout = null;
 let singleViewId = null;
 let shortcutHoldTimer = null;
-window.assigningShortcutIndex = undefined;
+let backupHoldTimer = null;
+function startBackupHold() { backupHoldTimer = setTimeout(() => { downloadBackupFile(); }, 5000); }
+function clearBackupHold() { if (backupHoldTimer) clearTimeout(backupHoldTimer); }
+
 const totalClickTracker = {};
 
 function logSystemActivity(action, name) {
@@ -393,9 +470,9 @@ function saveLocalOnly() { localStorage.setItem('customers', JSON.stringify(wind
 
 /* Shortcut Functions */
 function handleHoldStart(index) {
-    shortcutHoldTimer = setTimeout(() => {
+    shortcutHoldTimer = setTimeout(async () => {
         let shortcuts = JSON.parse(localStorage.getItem('shortcuts')) || [null,null,null,null,null,null];
-        if (shortcuts[index] && confirm("Remove this shortcut?")) {
+        if (shortcuts[index] && await window.customConfirm("Remove this shortcut?")) {
             shortcuts[index] = null;
             localStorage.setItem('shortcuts', JSON.stringify(shortcuts));
             renderShortcuts();
@@ -487,7 +564,7 @@ function updateBill(id, action) {
         } else {
             let timerDiv = document.getElementById('smsTimer');
             timerDiv.style.display = 'block';
-            let timeLeft = 4;
+            let timeLeft = 5;
             timerDiv.innerText = `Sync: ${timeLeft}s`;
             let initSyncTime = localStorage.getItem('lastSyncTimestamp');
             
@@ -537,7 +614,7 @@ function updateUI() {
         let char = c.name.trim().charAt(0).toUpperCase();
         if (!/[A-Z]/.test(char)) char = '#';
         if (char !== lastLetter && singleViewId === null) {
-            currentHTML += `<div id="letter-${char === '#' ? 'HASH' : char}" class="letter-header"><div><span>${char}</span>${lastLetter === '' ? `<span class="total-credit-grey" ondblclick="showCalculatedLastUpdate()">~ ${formatAmount(Math.round(totalMoney))}</span>` : ''}</div></div>`;
+            currentHTML += `<div id="letter-${char === '#' ? 'HASH' : char}" class="letter-header"><div><span>${char}</span>${lastLetter === '' ? `<span class="total-credit-grey" onclick="showCalculatedLastUpdate()">~ ${formatAmount(Math.round(totalMoney))}</span>` : ''}</div></div>`;
             lastLetter = char;
         }
         let displayTime = "";
@@ -614,7 +691,23 @@ window.pickContact = async function() {
             const contacts = await navigator.contacts.select(['name', 'tel'], { multiple: false });
             if (contacts.length > 0) {
                 if(contacts[0].name && contacts[0].name.length > 0) document.getElementById('newCustomerName').value = contacts[0].name[0];
-                if(contacts[0].tel && contacts[0].tel.length > 0) document.getElementById('newCustomerPhone').value = contacts[0].tel[0].replace(/[^0-9+]/g, '');
+                if(contacts[0].tel && contacts[0].tel.length > 0) {
+                    let selectedTel = contacts[0].tel[0];
+                    if (contacts[0].tel.length > 1) {
+                        let choiceOpts = contacts[0].tel.map(t => ({label: t, value: t}));
+                        let selected = await window.showCustomModal({type: 'choice', message: 'Select a number to use:', choices: choiceOpts});
+                        if (selected) {
+                            selectedTel = selected;
+                        } else {
+                            return;
+                        }
+                    }
+                    let formattedTel = selectedTel.replace(/[^0-9+]/g, '');
+                    if (formattedTel.startsWith('+92')) {
+                        formattedTel = '0' + formattedTel.substring(3);
+                    }
+                    document.getElementById('newCustomerPhone').value = formattedTel;
+                }
             }
         } catch (ex) { /* Do nothing if cancelled */ }
     } else {
@@ -622,20 +715,20 @@ window.pickContact = async function() {
     }
 };
 
-function deleteTracker(id) {
+async function deleteTracker(id) {
     const now = Date.now();
     if (!totalClickTracker[id]) { totalClickTracker[id] = { count: 1, time: now }; return; }
     if (now - totalClickTracker[id].time < 1500) totalClickTracker[id].count++; else totalClickTracker[id].count = 1;
     totalClickTracker[id].time = now;
-    if (totalClickTracker[id].count >= 5) {
+    if (totalClickTracker[id].count >= 3) {
+        totalClickTracker[id].count = 0;
         const c = window.customers.find(x => x && x.id === id);
-        if (confirm(`Delete ${c.name}?`)) { 
+        if (await window.customConfirm(`Delete ${c.name}?`)) { 
             logSystemActivity('delete', c.name);
             window.customers = window.customers.filter(x => x && x.id !== id); 
             saveLocalOnly(); 
             if (window.syncDelete) window.syncDelete(id);
         }
-        totalClickTracker[id].count = 0;
     }
 }
 
@@ -647,19 +740,19 @@ function showHistory(id) {
     let h = "";
     c.history.forEach(it => { 
         const isAdd = String(it.a).startsWith('+');
-        h += `<div class="history-item"><div style="font-weight:500; font-size:0.85rem; color:${isAdd?'#059669':'#ef4444'}">${isAdd?'Add':'Receive'} :- ${formatAmount(String(it.a).slice(1))}</div><div style="color:#e5e7eb; font-size:0.85rem; margin: 2px 0;">Total Bill :- ${formatAmount(it.t)}</div><div style="font-size:0.7rem; color:#9ca3af">${it.d}</div></div>`; 
+        h += `<div class="history-item"><div style="font-weight:600; font-size:0.95rem; color:${isAdd?'#059669':'#ef4444'}">${isAdd?'Add':'Receive'} :- ${formatAmount(String(it.a).slice(1))}</div><div style="color:#e5e7eb; font-weight:600; font-size:0.95rem; margin: 2px 0;">Total Bill :- ${formatAmount(it.t)}</div><div style="font-weight:600; font-size:0.8rem; color:#9ca3af">${it.d}</div></div>`; 
     });
     document.getElementById('histContent').innerHTML = h || `<div style="padding:20px; text-align:center; color:#9ca3af">No History</div>`;
     document.getElementById('historyOverlay').style.display = 'flex';
 }
 
 function closeHistory() { document.getElementById('historyOverlay').style.display = 'none'; }
-function editCustomer(id) {
+async function editCustomer(id) {
     const c = window.customers.find(x => x && x.id === id);
-    const n = prompt("Edit Name", c.name);
+    const n = await window.customPrompt("Edit Name", c.name);
     if (n !== null) {
         c.name = n.trim() || c.name;
-        const p = prompt("Edit Phone", c.phone);
+        const p = await window.customPrompt("Edit Phone", c.phone);
         if (p !== null) c.phone = p.trim() || "n";
         logSystemActivity('edit', c.name);
         saveLocalOnly();
@@ -667,10 +760,10 @@ function editCustomer(id) {
     }
 }
 function handleBackup() { if (window.fullManualBackup) window.fullManualBackup(); }
-function handleRestore() {
+async function handleRestore() {
     if (!navigator.onLine) { document.getElementById('fileInput').click(); } 
     else {
-        const choice = confirm("Restore from CLOUD?");
+        const choice = await window.customConfirm("Restore from CLOUD?");
         if (choice) { if(window.pullFromCloud) window.pullFromCloud(); }
         else { document.getElementById('fileInput').click(); }
     }
@@ -704,7 +797,7 @@ function restoreFromFile(e) {
                     updateUI();
                 }
             }
-        } catch (err) { alert("Invalid File Format"); }
+        } catch (err) { window.customAlert("Invalid File Format"); }
     };
     reader.readAsText(file);
 }
