@@ -414,7 +414,7 @@ let syncTimeout = null;
 let singleViewId = null;
 let shortcutHoldTimer = null;
 let backupHoldTimer = null;
-function startBackupHold() { backupHoldTimer = setTimeout(() => { downloadBackupFile(); }, 5000); }
+function startBackupHold() { backupHoldTimer = setTimeout(() => { downloadBackupFile(); }, 1500); }
 function clearBackupHold() { if (backupHoldTimer) clearTimeout(backupHoldTimer); }
 
 const totalClickTracker = {};
