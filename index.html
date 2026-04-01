@@ -528,7 +528,7 @@ function updateBill(id, action) {
     c.history.unshift({ a: (action === 'add' ? '+' : '-') + amt, t: c.total, d: timeLabel });
     
     const isW = c.phone && c.phone.toLowerCase().includes('w');
-    if(c.history.length > 15) { c.history = c.history.slice(0, 15); }
+    if(c.history.length > 10) { c.history = c.history.slice(0, 10); }
     
     saveLocalOnly(); 
     if (window.syncIndividual) window.syncIndividual(c);
