@@ -111,9 +111,31 @@ body { background-color: var(--bg); margin: 0; padding: 0; display: flex; justif
             <input type="text" id="customModalInput" class="input-box" style="margin:0; width:100%; box-sizing:border-box;">
         </div>
         <div id="customModalChoices" style="display:none; flex-direction:column; max-height:250px; overflow-y:auto;"></div>
-        <div id="customModalButtons" style="display:flex;">
-            <button id="customModalCancel" style="flex:1; padding:15px; background:#374151; color:white; border:none; font-weight:600; cursor:pointer; border-right:1px solid var(--border);">Cancel</button>
-            <button id="customModalOk" style="flex:1; padding:15px; background:var(--primary); color:white; border:none; font-weight:600; cursor:pointer;">OK</button>
+        <div id="customModalButtons" style="display:flex; justify-content: space-evenly; padding: 15px 0; background: transparent;">
+            <button id="customModalCancel" style="background:transparent; color:white; border:none; font-weight:700; cursor:pointer; padding: 10px 20px; font-size: 1rem;">Cancel</button>
+            <button id="customModalOk" style="background:transparent; color:var(--amber); border:none; font-weight:700; cursor:pointer; padding: 10px 20px; font-size: 1rem;">OK</button>
+        </div>
+    </div>
+</div>
+
+<div id="editCustomerOverlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:10006; display:none; justify-content:center; align-items:center;">
+    <div style="background:#2c2c2c; width:90%; max-width:350px; border-radius:16px; border:1px solid var(--border); padding:20px; box-sizing:border-box;">
+        <h3 style="color:var(--success); margin-top:0; margin-bottom: 20px; text-align:center; font-family:'Inter',sans-serif;">Edit Customer</h3>
+        <div style="display:flex; align-items:center; margin-bottom:15px; position:relative; background:#1e1e1e; border:1px solid var(--border); border-radius:8px;">
+            <input type="text" id="editCustName" class="input-box" style="margin:0; flex:1; border:none; background:transparent;" placeholder="Name">
+            <div onclick="copyEditInput('editCustName')" style="cursor:pointer; padding:10px; color:var(--text-light); display:flex; align-items:center;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            </div>
+        </div>
+        <div style="display:flex; align-items:center; margin-bottom:25px; position:relative; background:#1e1e1e; border:1px solid var(--border); border-radius:8px;">
+            <input type="text" id="editCustPhone" class="input-box" style="margin:0; flex:1; border:none; background:transparent;" placeholder="Phone">
+            <div onclick="copyEditInput('editCustPhone')" style="cursor:pointer; padding:10px; color:var(--text-light); display:flex; align-items:center;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            </div>
+        </div>
+        <div style="display:flex; justify-content:space-evenly;">
+            <button onclick="closeEditModal()" style="background:transparent; color:white; border:none; font-weight:700; cursor:pointer; padding:10px 20px; font-size:1rem;">Cancel</button>
+            <button id="saveEditBtn" style="background:transparent; color:var(--amber); border:none; font-weight:700; cursor:pointer; padding:10px 20px; font-size:1rem;">Save</button>
         </div>
     </div>
 </div>
@@ -389,7 +411,7 @@ window.customPrompt = (msg, def) => window.showCustomModal({type: 'prompt', mess
 
 window.currentSignal = 'red';
 window.startLiveSignal = function() {
-    setInterval(() => {
+    const doCheck = () => {
         const dbUrl = localStorage.getItem('db_url');
         if (!dbUrl || !navigator.onLine) { updateSignal('red'); return; }
         const start = Date.now();
@@ -400,7 +422,9 @@ window.startLiveSignal = function() {
             else if (lat < 2000) updateSignal('yellow');
             else updateSignal('red');
         }).catch(() => updateSignal('red'));
-    }, 2000);
+    };
+    doCheck();
+    setInterval(doCheck, 2000);
 };
 function updateSignal(color) {
     window.currentSignal = color;
@@ -584,6 +608,57 @@ function updateBill(id, action) {
     input.value = '';
 }
 
+window.nonActiveMode = false;
+window.nonActiveList = [];
+window.nonActiveIndex = 0;
+
+window.startNonActiveFlow = function() {
+    const now = Date.now();
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    window.nonActiveList = window.customers.filter(c => {
+        if (!c) return false;
+        if (!c.lastTime) return true;
+        const parts = c.lastTime.split('|');
+        if (parts.length > 1) {
+            const ts = parseInt(parts[1]);
+            return (now - ts) > sevenDays;
+        }
+        return true;
+    });
+    if (window.nonActiveList.length === 0) {
+        window.showMiniPopup("No non-active customers found", "success");
+        return;
+    }
+    window.nonActiveIndex = 0;
+    window.nonActiveMode = true;
+    window.showCurrentNonActive();
+};
+
+window.showCurrentNonActive = function() {
+    const c = window.nonActiveList[window.nonActiveIndex];
+    singleViewId = c.id;
+    updateUI();
+};
+
+window.nextNonActive = function() {
+    if (window.nonActiveIndex < window.nonActiveList.length - 1) {
+        window.nonActiveIndex++;
+        window.showCurrentNonActive();
+    } else {
+        window.nonActiveMode = false;
+        singleViewId = null;
+        clearSearch();
+        window.scrollTo(0,0);
+    }
+};
+
+window.prevNonActive = function() {
+    if (window.nonActiveIndex > 0) {
+        window.nonActiveIndex--;
+        window.showCurrentNonActive();
+    }
+};
+
 function updateUI() {
     if (!window.customers) return;
     const list = document.getElementById('customer-list');
@@ -624,6 +699,16 @@ function updateUI() {
         }
         currentHTML += `<div class="customer-box"><div class="customer-name" ondblclick="editCustomer(${c.id})">${c.name}</div><div class="total-amount" onclick="deleteTracker(${c.id})">Rs. ${formatAmount(Math.round(c.total))}</div><input type="number" id="input-${c.id}" class="input-box" placeholder="Amount"><div class="button-group"><button class="btn btn-add" onclick="updateBill(${c.id}, 'add')">Add</button><button class="btn btn-receive" onclick="updateBill(${c.id}, 'receive')">Receive</button></div>${displayTime ? `<div class="last-update-tag" onclick="showHistory(${c.id})">${displayTime}</div>` : ''}</div>`;
     });
+    
+    if (window.nonActiveMode && singleViewId !== null) {
+        const isLast = window.nonActiveIndex >= window.nonActiveList.length - 1;
+        const isFirst = window.nonActiveIndex === 0;
+        currentHTML += `<div style="display:flex; justify-content:space-between; margin-top:20px; gap:10px;">
+            <button onclick="prevNonActive()" style="flex:1; padding:12px; background:#3b82f6; color:white; border:none; border-radius:8px; font-weight:700; ${isFirst ? 'opacity:0.5; pointer-events:none;' : ''}">Back</button>
+            <button onclick="nextNonActive()" style="flex:1; padding:12px; background:#3b82f6; color:white; border:none; border-radius:8px; font-weight:700;">${isLast ? 'Last' : 'Next'}</button>
+        </div>`;
+    }
+    
     list.innerHTML = currentHTML;
 }
 
@@ -632,6 +717,21 @@ function searchCustomer() {
     const q = qInput.value.toLowerCase().trim();
     const res = document.getElementById('searchResults');
     res.innerHTML = '';
+    
+    if (q === '...') {
+        res.style.display = 'block';
+        const row = document.createElement('div');
+        row.textContent = 'Visit non-active customers';
+        row.style.color = 'var(--amber)';
+        row.onclick = () => {
+            res.style.display = 'none';
+            qInput.value = '';
+            window.startNonActiveFlow();
+        };
+        res.appendChild(row);
+        return;
+    }
+
     if (q.length < 1) { 
         res.style.display = 'none'; 
         if (window.assigningShortcutIndex !== undefined) window.assigningShortcutIndex = undefined;
@@ -670,12 +770,34 @@ function searchCustomer() {
     }
 }
 
-function clearSearch() { document.getElementById('customerSearch').value = ''; singleViewId = null; updateUI(); }
+function clearSearch() { document.getElementById('customerSearch').value = ''; singleViewId = null; window.nonActiveMode = false; updateUI(); }
 
 function addNewCustomer() {
     const n = document.getElementById('newCustomerName');
     const p = document.getElementById('newCustomerPhone');
-    if (!n.value.trim()) return;
+    const nVal = n.value.trim().toLowerCase();
+    const pVal = p.value.trim().toLowerCase();
+    
+    if (!nVal) return;
+
+    const existing = window.customers.find(c => {
+        if (!c) return false;
+        const cName = c.name.trim().toLowerCase();
+        const cPhone = c.phone.trim().toLowerCase();
+        return cName === nVal || (pVal !== 'n' && pVal !== '' && cPhone === pVal);
+    });
+
+    if (existing) {
+        singleViewId = existing.id;
+        updateUI();
+        document.getElementById('customerSearch').value = '';
+        n.value = ''; p.value = '';
+        window.location.hash = "";
+        window.scrollTo(0,0);
+        window.showMiniPopup("Account already exists", "error");
+        return;
+    }
+
     const newCust = { id: Date.now(), name: n.value.trim(), phone: p.value.trim() || "n", total: 0, history: [], lastTime: "" };
     window.customers.push(newCust);
     saveLocalOnly();
@@ -747,18 +869,48 @@ function showHistory(id) {
 }
 
 function closeHistory() { document.getElementById('historyOverlay').style.display = 'none'; }
-async function editCustomer(id) {
-    const c = window.customers.find(x => x && x.id === id);
-    const n = await window.customPrompt("Edit Name", c.name);
-    if (n !== null) {
-        c.name = n.trim() || c.name;
-        const p = await window.customPrompt("Edit Phone", c.phone);
-        if (p !== null) c.phone = p.trim() || "n";
-        logSystemActivity('edit', c.name);
-        saveLocalOnly();
-        if (window.syncIndividual) window.syncIndividual(c);
+
+window.copyEditInput = function(id) {
+    const val = document.getElementById(id).value;
+    if (!val) return;
+    const temp = document.createElement('textarea');
+    temp.value = val;
+    document.body.appendChild(temp);
+    temp.select();
+    temp.setSelectionRange(0, 99999);
+    try {
+        document.execCommand('copy');
+        window.showMiniPopup("Copied!", "success");
+    } catch (err) {
+        window.showMiniPopup("Failed to copy", "error");
     }
-}
+    document.body.removeChild(temp);
+};
+
+window.editCustomer = function(id) {
+    const c = window.customers.find(x => x && x.id === id);
+    if (!c) return;
+    document.getElementById('editCustName').value = c.name || '';
+    document.getElementById('editCustPhone').value = c.phone === 'n' ? '' : c.phone;
+    document.getElementById('editCustomerOverlay').style.display = 'flex';
+    document.getElementById('saveEditBtn').onclick = () => {
+        const n = document.getElementById('editCustName').value.trim();
+        const p = document.getElementById('editCustPhone').value.trim();
+        if (n && (c.name !== n || c.phone !== (p || 'n'))) {
+            c.name = n;
+            c.phone = p || "n";
+            logSystemActivity('edit', c.name);
+            saveLocalOnly();
+            if (window.syncIndividual) window.syncIndividual(c);
+        }
+        closeEditModal();
+    };
+};
+
+window.closeEditModal = function() {
+    document.getElementById('editCustomerOverlay').style.display = 'none';
+};
+
 function handleBackup() { if (window.fullManualBackup) window.fullManualBackup(); }
 async function handleRestore() {
     if (!navigator.onLine) { document.getElementById('fileInput').click(); } 
