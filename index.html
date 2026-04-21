@@ -409,6 +409,23 @@ window.customAlert = (msg) => window.showCustomModal({type: 'alert', message: ms
 window.customConfirm = (msg) => window.showCustomModal({type: 'confirm', message: msg});
 window.customPrompt = (msg, def) => window.showCustomModal({type: 'prompt', message: msg, defaultText: def});
 
+window.handleAmountInput = function(e, el) {
+    let val = el.value;
+    if (val.includes('.')) {
+        el.setAttribute('inputmode', 'text');
+        let parts = val.split('.');
+        if (parts.length > 2) {
+            val = parts[0] + '.' + parts.slice(1).join('').replace(/\./g, '');
+            el.value = val;
+        }
+        if (e && e.data === '.') {
+            el.value = val + ' ';
+        }
+    } else {
+        el.setAttribute('inputmode', 'decimal');
+    }
+};
+
 window.currentSignal = 'red';
 window.startLiveSignal = function() {
     const doCheck = () => {
@@ -540,7 +557,16 @@ function renderShortcuts() {
 
 function updateBill(id, action) {
     const input = document.getElementById(`input-${id}`);
-    const amt = parseFloat(input.value);
+    const inputVal = input.value.trim();
+    const dotIndex = inputVal.indexOf('.');
+    let amt = 0;
+    let productStr = "";
+    if (dotIndex !== -1) {
+        amt = parseFloat(inputVal.substring(0, dotIndex));
+        productStr = inputVal.substring(dotIndex);
+    } else {
+        amt = parseFloat(inputVal);
+    }
     if (!amt || amt <= 0) return;
     const c = window.customers.find(x => x && x.id === id);
     c.total += action === 'add' ? amt : -amt;
@@ -549,7 +575,7 @@ function updateBill(id, action) {
     logSystemActivity('update', c.name);
     const timeLabel = t.split('|')[0];
     if(!c.history) c.history = [];
-    c.history.unshift({ a: (action === 'add' ? '+' : '-') + amt, t: c.total, d: timeLabel });
+    c.history.unshift({ a: (action === 'add' ? '+' : '-') + amt + productStr, t: c.total, d: timeLabel });
     
     const isW = c.phone && c.phone.toLowerCase().includes('w');
     if(c.history.length > 10) { c.history = c.history.slice(0, 10); }
@@ -629,6 +655,7 @@ window.startNonActiveFlow = function() {
         window.showMiniPopup("No non-active customers found", "success");
         return;
     }
+    window.showMiniPopup(window.nonActiveList.length + " found", "success");
     window.nonActiveIndex = 0;
     window.nonActiveMode = true;
     window.showCurrentNonActive();
@@ -689,7 +716,7 @@ function updateUI() {
         let char = c.name.trim().charAt(0).toUpperCase();
         if (!/[A-Z]/.test(char)) char = '#';
         if (char !== lastLetter && singleViewId === null) {
-            currentHTML += `<div id="letter-${char === '#' ? 'HASH' : char}" class="letter-header"><div><span>${char}</span>${lastLetter === '' ? `<span class="total-credit-grey" onclick="showCalculatedLastUpdate()">~ ${formatAmount(Math.round(totalMoney))}</span>` : ''}</div></div>`;
+            currentHTML += `<div id="letter-${char === '#' ? 'HASH' : char}" class="letter-header"><div><span>${char}</span>${lastLetter === '' ? `<span class="total-credit-grey" onclick="showCalculatedLastUpdate()">~ ${formatAmount(Math.round(totalMoney))}</span><svg onclick="startNonActiveFlow()" title="Non-Active Customers" style="margin-left: 10px; cursor:pointer; vertical-align:middle; width:20px; height:20px; color:#9ca3af; transition: color 0.2s;" onmouseover="this.style.color='var(--amber)'" onmouseout="this.style.color='#9ca3af'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>` : ''}</div></div>`;
             lastLetter = char;
         }
         let displayTime = "";
@@ -697,7 +724,7 @@ function updateUI() {
             const parts = c.lastTime.split('|');
             displayTime = (Date.now() - parseInt(parts[1]) > 86400000) ? parts[0].split(' ')[0] + ' ' + parts[0].split(' ')[1] : parts[0].split(' ')[2] + ' ' + parts[0].split(' ')[3];
         }
-        currentHTML += `<div class="customer-box"><div class="customer-name" ondblclick="editCustomer(${c.id})">${c.name}</div><div class="total-amount" onclick="deleteTracker(${c.id})">Rs. ${formatAmount(Math.round(c.total))}</div><input type="number" id="input-${c.id}" class="input-box" placeholder="Amount"><div class="button-group"><button class="btn btn-add" onclick="updateBill(${c.id}, 'add')">Add</button><button class="btn btn-receive" onclick="updateBill(${c.id}, 'receive')">Receive</button></div>${displayTime ? `<div class="last-update-tag" onclick="showHistory(${c.id})">${displayTime}</div>` : ''}</div>`;
+        currentHTML += `<div class="customer-box"><div class="customer-name" ondblclick="editCustomer(${c.id})">${c.name}</div><div class="total-amount" onclick="deleteTracker(${c.id})">Rs. ${formatAmount(Math.round(c.total))}</div><input type="text" inputmode="decimal" id="input-${c.id}" class="input-box" placeholder="Amount" oninput="handleAmountInput(event, this)"><div class="button-group"><button class="btn btn-add" onclick="updateBill(${c.id}, 'add')">Add</button><button class="btn btn-receive" onclick="updateBill(${c.id}, 'receive')">Receive</button></div>${displayTime ? `<div class="last-update-tag" onclick="showHistory(${c.id})">${displayTime}</div>` : ''}</div>`;
     });
     
     if (window.nonActiveMode && singleViewId !== null) {
@@ -717,20 +744,6 @@ function searchCustomer() {
     const q = qInput.value.toLowerCase().trim();
     const res = document.getElementById('searchResults');
     res.innerHTML = '';
-    
-    if (q === '...') {
-        res.style.display = 'block';
-        const row = document.createElement('div');
-        row.textContent = 'Visit non-active customers';
-        row.style.color = 'var(--amber)';
-        row.onclick = () => {
-            res.style.display = 'none';
-            qInput.value = '';
-            window.startNonActiveFlow();
-        };
-        res.appendChild(row);
-        return;
-    }
 
     if (q.length < 1) { 
         res.style.display = 'none'; 
@@ -861,8 +874,20 @@ function showHistory(id) {
     header.innerText = c.name;
     let h = "";
     c.history.forEach(it => { 
-        const isAdd = String(it.a).startsWith('+');
-        h += `<div class="history-item"><div style="font-weight:600; font-size:0.95rem; color:${isAdd?'#059669':'#ef4444'}">${isAdd?'Add':'Receive'} :- ${formatAmount(String(it.a).slice(1))}</div><div style="color:#e5e7eb; font-weight:600; font-size:0.95rem; margin: 2px 0;">Total Bill :- ${formatAmount(it.t)}</div><div style="font-weight:600; font-size:0.8rem; color:#9ca3af">${it.d}</div></div>`; 
+        const strA = String(it.a);
+        const isAdd = strA.startsWith('+');
+        const rawVal = strA.slice(1);
+        const dotIdx = rawVal.indexOf('.');
+        let dispName = isAdd ? 'Add' : 'Receive';
+        let dispAmount = rawVal;
+        if (dotIdx !== -1) {
+            dispAmount = rawVal.substring(0, dotIdx);
+            let prod = rawVal.substring(dotIdx + 1).trim();
+            if (prod) {
+                dispName = prod.charAt(0).toUpperCase() + prod.slice(1);
+            }
+        }
+        h += `<div class="history-item"><div style="font-weight:600; font-size:0.95rem; color:${isAdd?'#059669':'#ef4444'}">${dispName} :- ${formatAmount(dispAmount)}</div><div style="color:#e5e7eb; font-weight:600; font-size:0.95rem; margin: 2px 0;">Total Bill :- ${formatAmount(it.t)}</div><div style="font-weight:600; font-size:0.8rem; color:#9ca3af">${it.d}</div></div>`; 
     });
     document.getElementById('histContent').innerHTML = h || `<div style="padding:20px; text-align:center; color:#9ca3af">No History</div>`;
     document.getElementById('historyOverlay').style.display = 'flex';
