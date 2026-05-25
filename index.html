@@ -1079,8 +1079,6 @@ document.addEventListener('DOMContentLoaded', () => {
     window.checkSyncIntegrity();
     refreshSyncLine(localStorage.getItem('storedSyncTime'), false);
     startLiveSignal();
-    const searchInput = document.getElementById('customerSearch');
-    if(searchInput) searchInput.focus();
 });
 
 window.addEventListener('load', () => {
