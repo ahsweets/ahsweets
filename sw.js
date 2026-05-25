@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ah-sweets-cache-v1';
+const CACHE_NAME = 'haider-sweets-cache-v1';
 const assets = [
   './',
   './index.html',
