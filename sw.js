@@ -2,6 +2,8 @@ const CACHE_NAME = 'haider-sweets-cache-v1';
 const assets = [
   './',
   './index.html',
+  './manifest.json',
+  'https://cdn-icons-png.flaticon.com/512/5164/5164020.png',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
 ];
 
