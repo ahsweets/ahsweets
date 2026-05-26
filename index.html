@@ -329,7 +329,11 @@ window.pullFromCloud = async function() {
         const cloudData = snapshot.val();
         if (cloudData && cloudData.customers) {
             const rawList = Object.values(cloudData.customers);
-            window.customers = rawList.map(it => ({ id: it.I || Date.now(), name: it.C, phone: it.P || "n", total: it.T, history: it.H || [], lastTime: it.L || "" }));
+            window.customers = rawList.map(it => {
+                let hArr = it.H || [];
+                if (it.C && it.C.startsWith('×')) { hArr = []; }
+                return { id: it.I || Date.now(), name: it.C, phone: it.P || "n", total: it.T, history: hArr, lastTime: it.L || "" };
+            });
             const cloudSyncTime = cloudData.lastSyncTime || getStatusPattern();
             localStorage.setItem('customers', JSON.stringify(window.customers));
             localStorage.setItem('storedSyncTime', cloudSyncTime);
@@ -456,7 +460,9 @@ const totalClickTracker = {};
 function logSystemActivity(action, name) {
     let logs = JSON.parse(localStorage.getItem('system_activities')) || [];
     const timeLabel = getFormattedTime().split('|')[0];
-    logs.unshift(`${action.charAt(0).toUpperCase() + action.slice(1)} ${name} at ${timeLabel}`);
+    let cleanName = name;
+    if (cleanName && cleanName.startsWith('×')) { cleanName = cleanName.substring(1); }
+    logs.unshift(`${action.charAt(0).toUpperCase() + action.slice(1)} ${cleanName} at ${timeLabel}`);
     if (logs.length > 7) logs = logs.slice(0, 7);
     localStorage.setItem('system_activities', JSON.stringify(logs));
 }
@@ -540,7 +546,9 @@ function renderShortcuts() {
         box.onmouseup = box.onmouseleave = box.ontouchend = () => handleHoldEnd();
         box.onclick = () => handleShortcutClick(i);
         if (c) {
-            let names = c.name.replace(/^×/, '').trim().split(/\s+/);
+            let displayName = c.name;
+            if (displayName && displayName.startsWith('×')) { displayName = displayName.substring(1); }
+            let names = displayName.trim().split(/\s+/);
             box.innerHTML = names.length > 1 ? `${names[0]}<br>${names[1]}` : names[0];
         } else { box.innerHTML = '+'; }
         container.appendChild(box);
@@ -566,9 +574,11 @@ function updateBill(id, action) {
     c.lastTime = t;
     logSystemActivity('update', c.name);
     const timeLabel = t.split('|')[0];
+    if(!c.history) c.history = [];
     
-    if (!c.name.startsWith('×')) {
-        if(!c.history) c.history = [];
+    if (c.name && c.name.startsWith('×')) {
+        c.history = [];
+    } else {
         c.history.unshift({ a: (action === 'add' ? '+' : '-') + amt + productStr, t: c.total, d: timeLabel });
         if(c.history.length > 10) { c.history = c.history.slice(0, 10); }
     }
@@ -738,13 +748,19 @@ function updateUI() {
     searchInput.placeholder = `🔍 Search ${window.customers.length} Customers...`;
     list.innerHTML = '';
     renderShortcuts();
-    window.customers.sort((a, b) => (a && b) ? a.name.replace(/^×/, '').toLowerCase().localeCompare(b.name.replace(/^×/, '').toLowerCase()) : 0);
+    window.customers.sort((a, b) => {
+        if (!a || !b) return 0;
+        let nameA = a.name.startsWith('×') ? a.name.substring(1) : a.name;
+        let nameB = b.name.startsWith('×') ? b.name.substring(1) : b.name;
+        return nameA.toLowerCase().localeCompare(nameB.toLowerCase());
+    });
     
     if (singleViewId) { alphaNav.style.display = 'none'; showAllBtn.style.display = 'block'; }
     else {
         alphaNav.style.display = 'flex'; showAllBtn.style.display = 'none';
         const activeLetters = [...new Set(window.customers.filter(c=>c).map(c => {
-            let char = c.name.replace(/^×/, '').trim().charAt(0).toUpperCase();
+            let nameForChar = c.name.startsWith('×') ? c.name.substring(1) : c.name;
+            let char = nameForChar.trim().charAt(0).toUpperCase();
             return /[A-Z]/.test(char) ? char : '#';
         }))].sort();
         alphaNav.innerHTML = `<a href="#add-new-section" style="font-size: 18px; margin-bottom: 5px;">+</a>`;
@@ -755,7 +771,8 @@ function updateUI() {
     let currentHTML = '';
     window.customers.forEach((c) => {
         if (!c || (singleViewId !== null && c.id !== singleViewId)) return;
-        let char = c.name.replace(/^×/, '').trim().charAt(0).toUpperCase();
+        let nameForChar = c.name.startsWith('×') ? c.name.substring(1) : c.name;
+        let char = nameForChar.trim().charAt(0).toUpperCase();
         if (!/[A-Z]/.test(char)) char = '#';
         if (char !== lastLetter && singleViewId === null) {
             currentHTML += `<div id="letter-${char === '#' ? 'HASH' : char}" class="letter-header"><div><span>${char}</span>${lastLetter === '' ? `<span class="total-credit-grey" onclick="showCalculatedLastUpdate()">~ ${formatAmount(Math.round(totalMoney))}</span><svg onclick="startNonActiveFlow()" title="Non-Active Customers" style="margin-left: 10px; cursor:pointer; vertical-align:middle; width:20px; height:20px; color:#9ca3af; transition: color 0.2s;" onmouseover="this.style.color='var(--amber)'" onmouseout="this.style.color='#9ca3af'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>` : ''}</div></div>`;
@@ -766,8 +783,8 @@ function updateUI() {
             const parts = c.lastTime.split('|');
             displayTime = (Date.now() - parseInt(parts[1]) > 86400000) ? parts[0].split(' ')[0] + ' ' + parts[0].split(' ')[1] : parts[0].split(' ')[2] + ' ' + parts[0].split(' ')[3];
         }
-        let cleanDisplayName = c.name.startsWith('×') ? c.name.slice(1) : c.name;
-        currentHTML += `<div class="customer-box"><div class="customer-name" ondblclick="editCustomer(${c.id})">${cleanDisplayName}</div><div class="total-amount" onclick="deleteTracker(${c.id})">Rs. ${formatAmount(Math.round(c.total))}</div><input type="text" inputmode="decimal" id="input-${c.id}" class="input-box" placeholder="Amount" oninput="handleAmountInput(event, this)"><div class="button-group"><button class="btn btn-add" onclick="updateBill(${c.id}, 'add')">Add</button><button class="btn btn-receive" onclick="updateBill(${c.id}, 'receive')">Receive</button></div>${displayTime ? `<div class="last-update-tag" onclick="showHistory(${c.id})">${displayTime}</div>` : ''}</div>`;
+        let viewName = c.name.startsWith('×') ? c.name.substring(1) : c.name;
+        currentHTML += `<div class="customer-box"><div class="customer-name" ondblclick="editCustomer(${c.id})">${viewName}</div><div class="total-amount" onclick="deleteTracker(${c.id})">Rs. ${formatAmount(Math.round(c.total))}</div><input type="text" inputmode="decimal" id="input-${c.id}" class="input-box" placeholder="Amount" oninput="handleAmountInput(event, this)"><div class="button-group"><button class="btn btn-add" onclick="updateBill(${c.id}, 'add')">Add</button><button class="btn btn-receive" onclick="updateBill(${c.id}, 'receive')">Receive</button></div>${displayTime ? `<div class="last-update-tag" onclick="showHistory(${c.id})">${displayTime}</div>` : ''}</div>`;
     });
     
     if (window.nonActiveMode && singleViewId !== null) {
@@ -807,7 +824,11 @@ function searchCustomer() {
     if (isNumeric) {
         filtered = window.customers.filter(c => c && Math.round(c.total).toString().includes(q));
     } else {
-        filtered = window.customers.filter(c => c && c.name.replace(/^×/, '').toLowerCase().includes(q));
+        filtered = window.customers.filter(c => {
+            if (!c) return false;
+            let targetName = c.name.startsWith('×') ? c.name.substring(1) : c.name;
+            return targetName.toLowerCase().includes(q);
+        });
     }
 
     if (filtered.length > 0 || (!isNumeric && "new customers".includes(q))) {
@@ -826,11 +847,11 @@ function searchCustomer() {
 
         filtered.forEach(c => {
             const row = document.createElement('div');
-            let cleanDisplay = c.name.startsWith('×') ? c.name.slice(1) : c.name;
+            let searchName = c.name.startsWith('×') ? c.name.substring(1) : c.name;
             if (isNumeric) {
-                row.innerHTML = `<span style="color:var(--success);">${cleanDisplay}</span> <span style="color:#059669;">(Rs. ${formatAmount(Math.round(c.total))})</span>`;
+                row.innerHTML = `<span style="color:var(--success);">${searchName}</span> <span style="color:#ffffff; font-weight:500;">(Rs. ${formatAmount(Math.round(c.total))})</span>`;
             } else {
-                row.textContent = cleanDisplay;
+                row.textContent = searchName;
             }
             row.onclick = () => { 
                 if (window.assigningShortcutIndex !== undefined) {
@@ -887,7 +908,10 @@ function addNewCustomer() {
         return;
     }
 
-    const newCust = { id: Date.now(), name: n.value.trim(), phone: p.value.trim() || "n", total: 0, history: [], lastTime: "" };
+    let rawName = n.value.trim();
+    let hArr = [];
+    if (rawName.startsWith('×')) { hArr = []; }
+    const newCust = { id: Date.now(), name: rawName, phone: p.value.trim() || "n", total: 0, history: hArr, lastTime: "" };
     window.customers.push(newCust);
     saveLocalOnly();
     n.value = ''; p.value = '';
@@ -934,7 +958,8 @@ async function deleteTracker(id) {
     if (totalClickTracker[id].count >= 3) {
         totalClickTracker[id].count = 0;
         const c = window.customers.find(x => x && x.id === id);
-        if (await window.customConfirm(`Delete ${c.name}?`)) { 
+        let delConfirmName = c.name.startsWith('×') ? c.name.substring(1) : c.name;
+        if (await window.customConfirm(`Delete ${delConfirmName}?`)) { 
             logSystemActivity('delete', c.name);
             window.customers = window.customers.filter(x => x && x.id !== id); 
             saveLocalOnly(); 
@@ -947,7 +972,8 @@ function showHistory(id) {
     const c = window.customers.find(x => x && x.id === id);
     if (!c || !c.history) return;
     const header = document.getElementById('histHeader');
-    header.innerText = c.name.replace(/^×/, '');
+    let hName = c.name.startsWith('×') ? c.name.substring(1) : c.name;
+    header.innerText = hName;
     let h = "";
     c.history.forEach(it => { 
         const strA = String(it.a);
@@ -963,12 +989,7 @@ function showHistory(id) {
                 dispName = prod.charAt(0).toUpperCase() + prod.slice(1);
             }
         }
-        
-        let labelSpan = isAdd 
-            ? `<span style="font-weight:600; font-size:0.95rem; color:#059669">${dispName} :- </span>`
-            : `<span style="font-weight:600; font-size:0.95rem; color:#ef4444">${dispName} :- </span>`;
-            
-        h += `<div class="history-item"><div>${labelSpan}<span style="color:#ffffff; font-weight:600; font-size:0.95rem;">${formatAmount(dispAmount)}</span></div><div style="font-weight:600; font-size:0.95rem; margin: 2px 0;"><span style="color:var(--amber);">Total :- </span><span style="color:#ffffff;">${formatAmount(it.t)}</span></div><div style="font-weight:600; font-size:0.8rem; color:#9ca3af">${it.d}</div></div>`; 
+        h += `<div class="history-item"><div style="font-weight:600; font-size:0.95rem; color:${isAdd?'#059669':'#ef4444'}">${dispName} :- ${formatAmount(dispAmount)}</div><div style="color:#e5e7eb; font-weight:600; font-size:0.95rem; margin: 2px 0;">Total Bill :- ${formatAmount(it.t)}</div><div style="font-weight:600; font-size:0.8rem; color:#9ca3af">${it.d}</div></div>`; 
     });
     document.getElementById('histContent').innerHTML = h || `<div style="padding:20px; text-align:center; color:#9ca3af">No History</div>`;
     document.getElementById('historyOverlay').style.display = 'flex';
@@ -1005,6 +1026,9 @@ window.editCustomer = function(id) {
         if (n && (c.name !== n || c.phone !== (p || 'n'))) {
             c.name = n;
             c.phone = p || "n";
+            if (c.name.startsWith('×')) {
+                c.history = [];
+            }
             logSystemActivity('edit', c.name);
             saveLocalOnly();
             if (window.syncIndividual) window.syncIndividual(c);
@@ -1048,7 +1072,11 @@ function restoreFromFile(e) {
             if (data && typeof data === 'object' && !Array.isArray(data)) {
                 const rawList = Object.values(data);
                 if (rawList.length > 0) {
-                    window.customers = rawList.map(it => ({ id: it.I, name: it.C, phone: it.P, total: it.T, history: it.H || [], lastTime: it.L || "" }));
+                    window.customers = rawList.map(it => {
+                        let hArr = it.H || [];
+                        if (it.C && it.C.startsWith('×')) { hArr = []; }
+                        return { id: it.I, name: it.C, phone: it.P, total: it.T, history: hArr, lastTime: it.L || "" };
+                    });
                     localStorage.setItem('customers', JSON.stringify(window.customers));
                     localStorage.setItem('lastSyncTimestamp', Date.now());
                     localStorage.setItem('sync_blocked', 'false');
@@ -1076,7 +1104,10 @@ function showCalculatedLastUpdate() {
             if (c && c.lastTime && typeof c.lastTime === 'string' && c.lastTime.includes('|')) {
                 const parts = c.lastTime.split('|');
                 const ts = parseInt(parts[1]);
-                if (!latest || ts > latest.ts) { latest = { name: c.name, time: parts[0], ts: ts }; }
+                if (!latest || ts > latest.ts) { 
+                    let cleanLName = c.name.startsWith('×') ? c.name.substring(1) : c.name;
+                    latest = { name: cleanLName, time: parts[0], ts: ts }; 
+                }
             }
         });
         if (latest) h = `<div class="history-item" style="color:#3b82f6">Latest: ${latest.name}<br>${latest.time}</div>`;
@@ -1094,6 +1125,11 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 window.addEventListener('load', () => {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js')
+        .then(() => console.log("Service Worker Active"))
+        .catch(err => console.log("SW Registration Failed", err));
+    }
     let checkCount = 0;
     let initialCheck = setInterval(() => {
         checkCount++;
@@ -1108,14 +1144,6 @@ window.addEventListener('load', () => {
         }
     }, 1000);
 });
-
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
-      .then(reg => console.log('Service Worker Registered Successfully', reg.scope))
-      .catch(err => console.log('Service Worker Registration Failed', err));
-  });
-}
 </script>
 </body>
 </html>
